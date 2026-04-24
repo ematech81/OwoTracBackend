@@ -42,7 +42,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
   growth: {
     id: "growth",
     name: "Growth",
-    priceNaira: 2500,
+    priceNaira: 3000,
     paystackPlanCode: process.env.PAYSTACK_PLAN_GROWTH ?? "",
     badge: "Popular",
     limits: {

@@ -1,9 +1,21 @@
-import axios from "axios";
+import axios, { AxiosError } from "axios";
 import crypto from "crypto";
 import { User, IUser } from "../users/user.model";
 import { getPlan, PlanId, PLANS } from "../../config/plans";
 import { env } from "../../config/env";
 import { AppError } from "../../middleware/errorHandler";
+
+function handlePaystackError(err: unknown, fallback: string): never {
+  if (err instanceof AxiosError) {
+    const msg =
+      err.response?.data?.message ||
+      err.response?.data?.error ||
+      fallback;
+    const status = err.response?.status === 404 ? 422 : 502;
+    throw new AppError(status, `Paystack: ${msg}`, "PAYSTACK_ERROR");
+  }
+  throw err;
+}
 
 const PAYSTACK_BASE = "https://api.paystack.co";
 const paystackHeaders = () => ({
@@ -17,20 +29,23 @@ async function ensureCustomer(user: IUser): Promise<string> {
 
   const email = user.email || `${user.phone.replace(/\D/g, "")}@owotrack.app`;
   const nameParts = user.name.trim().split(/\s+/);
-  const res = await axios.post(
-    `${PAYSTACK_BASE}/customer`,
-    {
-      email,
-      first_name: nameParts[0],
-      last_name: nameParts.slice(1).join(" ") || nameParts[0],
-      phone: user.phone,
-    },
-    { headers: paystackHeaders() }
-  );
-
-  const customerCode: string = res.data.data.customer_code;
-  await User.findByIdAndUpdate(user._id, { "subscription.paystackCustomerCode": customerCode });
-  return customerCode;
+  try {
+    const res = await axios.post(
+      `${PAYSTACK_BASE}/customer`,
+      {
+        email,
+        first_name: nameParts[0],
+        last_name: nameParts.slice(1).join(" ") || nameParts[0],
+        phone: user.phone,
+      },
+      { headers: paystackHeaders() }
+    );
+    const customerCode: string = res.data.data.customer_code;
+    await User.findByIdAndUpdate(user._id, { "subscription.paystackCustomerCode": customerCode });
+    return customerCode;
+  } catch (err) {
+    handlePaystackError(err, "Could not create customer");
+  }
 }
 
 export async function initializeSubscription(
@@ -46,30 +61,39 @@ export async function initializeSubscription(
   const email = user.email || `${user.phone.replace(/\D/g, "")}@owotrack.app`;
   await ensureCustomer(user);
 
-  const res = await axios.post(
-    `${PAYSTACK_BASE}/transaction/initialize`,
-    {
-      email,
-      amount: plan.priceNaira * 100,
-      plan: plan.paystackPlanCode,
-      metadata: { userId: user._id.toString(), planId },
-      callback_url: "owotrack://subscription/verify",
-    },
-    { headers: paystackHeaders() }
-  );
+  try {
+    const res = await axios.post(
+      `${PAYSTACK_BASE}/transaction/initialize`,
+      {
+        email,
+        amount: plan.priceNaira * 100,
+        plan: plan.paystackPlanCode,
+        metadata: { userId: user._id.toString(), planId },
+        callback_url: "owotrack://subscription/verify",
+      },
+      { headers: paystackHeaders() }
+    );
 
-  return {
-    authorizationUrl: res.data.data.authorization_url,
-    reference: res.data.data.reference,
-  };
+    return {
+      authorizationUrl: res.data.data.authorization_url,
+      reference: res.data.data.reference,
+    };
+  } catch (err) {
+    handlePaystackError(err, "Could not initialize checkout");
+  }
 }
 
 export async function verifyTransaction(reference: string): Promise<{ planId: string; status: string }> {
-  const res = await axios.get(`${PAYSTACK_BASE}/transaction/verify/${reference}`, {
-    headers: paystackHeaders(),
-  });
+  let res;
+  try {
+    res = await axios.get(`${PAYSTACK_BASE}/transaction/verify/${reference}`, {
+      headers: paystackHeaders(),
+    });
+  } catch (err) {
+    handlePaystackError(err, "Could not verify transaction");
+  }
 
-  const data = res.data.data;
+  const data = res!.data.data;
   if (data.status !== "success") throw new AppError(400, "Payment not successful", "PAYMENT_FAILED");
 
   const { userId, planId } = data.metadata ?? {};
@@ -112,11 +136,15 @@ export async function cancelSubscription(userId: string): Promise<void> {
 
   const { paystackSubscriptionCode, paystackEmailToken } = user.subscription;
   if (paystackSubscriptionCode && paystackEmailToken) {
-    await axios.post(
-      `${PAYSTACK_BASE}/subscription/disable`,
-      { code: paystackSubscriptionCode, token: paystackEmailToken },
-      { headers: paystackHeaders() }
-    );
+    try {
+      await axios.post(
+        `${PAYSTACK_BASE}/subscription/disable`,
+        { code: paystackSubscriptionCode, token: paystackEmailToken },
+        { headers: paystackHeaders() }
+      );
+    } catch (err) {
+      handlePaystackError(err, "Could not cancel subscription on Paystack");
+    }
   }
 
   await User.findByIdAndUpdate(userId, { "subscription.status": "cancelled" });
