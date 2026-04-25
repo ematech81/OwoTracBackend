@@ -17,7 +17,7 @@ import {
 const router = Router();
 
 router.post("/send-otp", otpLimiter, validate(sendOtpSchema), authController.sendOtp);
-router.post("/verify-otp", validate(verifyOtpSchema), authController.verifyOtp);
+router.post("/verify-otp", otpLimiter, validate(verifyOtpSchema), authController.verifyOtp);
 router.post("/register", validate(registerSchema), authController.register);
 router.post("/login", authLimiter, validate(loginSchema), authController.login);
 router.post("/refresh-token", validate(refreshTokenSchema), authController.refreshToken);

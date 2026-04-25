@@ -19,7 +19,15 @@ async function getCachedContext(userId: string): Promise<string> {
 
 const todayStr = () => new Date().toISOString().split("T")[0];
 
-const SYSTEM_PROMPT = (userName: string, context: string) => `
+function languageInstruction(lang: string): string {
+  const map: Record<string, string> = {
+    english: "Respond in clear, plain English.",
+    pidgin:  "Respond in Nigerian Pidgin English (e.g. 'your profit don increase', 'make you check am well well').",
+  };
+  return map[lang] ?? map.pidgin;
+}
+
+const SYSTEM_PROMPT = (userName: string, context: string, language: string) => `
 You are OwoTrack AI Advisor — a smart, warm business coach for Nigerian market traders.
 You are talking to ${userName}.
 
@@ -29,7 +37,7 @@ ${context}
 RULES:
 - Keep responses SHORT: 2–4 sentences for chat, max 5 for analysis
 - Be specific — reference actual numbers from the context when relevant
-- Speak in a friendly mix of English and Nigerian Pidgin (e.g., "your profit don increase", "make you watch your expenses")
+- ${languageInstruction(language)}
 - Address the user by first name occasionally
 - Give ONE clear actionable advice per response
 - Use 1 emoji per response max
@@ -151,7 +159,7 @@ async function buildContext(userId: string): Promise<string> {
 }
 
 export const advisorService = {
-  async getTip(userId: string, userName: string): Promise<AdvisorResponse> {
+  async getTip(userId: string, userName: string, language = "pidgin"): Promise<AdvisorResponse> {
     const context = await getCachedContext(userId);
     const firstName = userName.split(" ")[0];
 
@@ -168,7 +176,8 @@ Rules:
 - Be direct and practical — not generic advice
 - Friendly but concise
 - No markdown, no bullet points, no greetings
-- Do NOT start with "Hello", "Hi", or the user's name`,
+- Do NOT start with "Hello", "Hi", or the user's name
+- ${languageInstruction(language)}`,
           },
           {
             role: "user",
@@ -188,7 +197,7 @@ Rules:
     }
   },
 
-  async getGreeting(userId: string, userName: string): Promise<AdvisorResponse> {
+  async getGreeting(userId: string, userName: string, language = "pidgin"): Promise<AdvisorResponse> {
     const context = await getCachedContext(userId);
     const firstName = userName.split(" ")[0];
 
@@ -245,7 +254,7 @@ End with an engaging question.`;
       const response = await openai.chat.completions.create({
         model: env.OPENAI_MODEL,
         messages: [
-          { role: "system", content: SYSTEM_PROMPT(firstName, context) },
+          { role: "system", content: SYSTEM_PROMPT(firstName, context, language) },
           { role: "user", content: prompt },
         ],
         max_tokens: 120,
@@ -266,14 +275,15 @@ End with an engaging question.`;
     userId: string,
     userName: string,
     message: string,
-    history: ChatMessage[]
+    history: ChatMessage[],
+    language = "pidgin"
   ): Promise<AdvisorResponse> {
     const context = await getCachedContext(userId);
     const firstName = userName.split(" ")[0];
 
     try {
       const messages = [
-        { role: "system" as const, content: SYSTEM_PROMPT(firstName, context) },
+        { role: "system" as const, content: SYSTEM_PROMPT(firstName, context, language) },
         ...history.slice(-6),
         { role: "user" as const, content: message },
       ];
@@ -299,7 +309,8 @@ End with an engaging question.`;
     userName: string,
     message: string,
     history: ChatMessage[],
-    res: Response
+    res: Response,
+    language = "pidgin"
   ): Promise<void> {
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
@@ -311,7 +322,7 @@ End with an engaging question.`;
       const firstName = userName.split(" ")[0];
 
       const messages = [
-        { role: "system" as const, content: SYSTEM_PROMPT(firstName, context) },
+        { role: "system" as const, content: SYSTEM_PROMPT(firstName, context, language) },
         ...history.slice(-6),
         { role: "user" as const, content: message },
       ];

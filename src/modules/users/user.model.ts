@@ -16,7 +16,7 @@ export interface IUser extends Document {
     city?: string;
     market?: string;
   };
-  preferredLanguage: "pidgin" | "yoruba" | "igbo" | "hausa" | "english";
+  preferredLanguage: "pidgin" | "english";
   currency: string;
   notifications: {
     dailyReminder: boolean;
@@ -38,6 +38,8 @@ export interface IUser extends Document {
   loanEligible: boolean;
   referralCode: string;
   referredBy?: mongoose.Types.ObjectId;
+  hasUsedReferralReward: boolean;
+  referralRewardExpiresAt?: Date;
   streakDays: number;
   lastRecordDate?: Date;
   isActive: boolean;
@@ -70,7 +72,7 @@ const userSchema = new Schema<IUser>(
     },
     preferredLanguage: {
       type: String,
-      enum: ["pidgin", "yoruba", "igbo", "hausa", "english"],
+      enum: ["pidgin", "english"],
       default: "pidgin",
     },
     currency: { type: String, default: "NGN" },
@@ -98,6 +100,8 @@ const userSchema = new Schema<IUser>(
     loanEligible: { type: Boolean, default: false },
     referralCode: { type: String, unique: true, sparse: true },
     referredBy: { type: Schema.Types.ObjectId, ref: "User" },
+    hasUsedReferralReward: { type: Boolean, default: false },
+    referralRewardExpiresAt: Date,
     streakDays: { type: Number, default: 0 },
     lastRecordDate: Date,
     isActive: { type: Boolean, default: true },

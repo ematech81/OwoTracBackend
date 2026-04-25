@@ -4,6 +4,7 @@ import { User, IUser } from "../users/user.model";
 import { getPlan, PlanId, PLANS } from "../../config/plans";
 import { env } from "../../config/env";
 import { AppError } from "../../middleware/errorHandler";
+import { redis } from "../../config/redis";
 
 function handlePaystackError(err: unknown, fallback: string): never {
   if (err instanceof AxiosError) {
@@ -159,6 +160,15 @@ export function verifyWebhookSignature(rawBody: Buffer, signature: string): bool
 }
 
 export async function handleWebhookEvent(event: string, data: Record<string, unknown>): Promise<void> {
+  // Idempotency guard — Paystack can send the same webhook multiple times
+  // Use the transaction reference or subscription code as the dedup key
+  const reference = (data.reference as string) || (data.subscription_code as string) || "";
+  if (reference) {
+    const dedupKey = `webhook:${event}:${reference}`;
+    const alreadyProcessed = await redis.set(dedupKey, "1", "EX", 86400, "NX"); // 24h TTL, only set if not exists
+    if (alreadyProcessed === null) return; // null means key already existed — duplicate event
+  }
+
   if (event === "charge.success" || event === "subscription.create") {
     const metadata = (data.metadata as Record<string, string>) ?? {};
     const { userId, planId } = metadata;

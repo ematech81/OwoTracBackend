@@ -7,6 +7,14 @@ const required = (key: string): string => {
   return val;
 };
 
+const requiredInProd = (key: string): string => {
+  const val = process.env[key] || "";
+  if (!val && process.env.NODE_ENV === "production") {
+    throw new Error(`Missing required env var in production: ${key}`);
+  }
+  return val;
+};
+
 export const env = {
   NODE_ENV: process.env.NODE_ENV || "development",
   PORT: parseInt(process.env.PORT || "5000", 10),
@@ -33,9 +41,9 @@ export const env = {
   CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY || "",
   CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET || "",
 
-  PAYSTACK_SECRET_KEY: process.env.PAYSTACK_SECRET_KEY || "",
-  PAYSTACK_PUBLIC_KEY: process.env.PAYSTACK_PUBLIC_KEY || "",
-  PAYSTACK_WEBHOOK_SECRET: process.env.PAYSTACK_WEBHOOK_SECRET || "",
+  PAYSTACK_SECRET_KEY: requiredInProd("PAYSTACK_SECRET_KEY"),
+  PAYSTACK_PUBLIC_KEY: requiredInProd("PAYSTACK_PUBLIC_KEY"),
+  PAYSTACK_WEBHOOK_SECRET: requiredInProd("PAYSTACK_WEBHOOK_SECRET"),
   PAYSTACK_PLAN_GROWTH: process.env.PAYSTACK_PLAN_GROWTH || "",
   PAYSTACK_PLAN_PRO: process.env.PAYSTACK_PLAN_PRO || "",
   PAYSTACK_PLAN_BUSINESS: process.env.PAYSTACK_PLAN_BUSINESS || "",

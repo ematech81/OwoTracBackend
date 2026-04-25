@@ -103,12 +103,24 @@ export const usersController = {
       const user = await User.findById(req.userId).select("referralCode name");
       if (!user) throw new AppError(404, "User not found", "USER_NOT_FOUND");
 
-      const referralCount = await User.countDocuments({ referredBy: req.userId });
+      // Fetch people who used this user's code (limited to 20 most recent)
+      const referrals = await User.find({ referredBy: req.userId })
+        .select("name createdAt subscription")
+        .sort({ createdAt: -1 })
+        .limit(20);
+
+      const referralList = referrals.map((r) => ({
+        firstName: r.name.trim().split(" ")[0],
+        joinedAt: r.createdAt,
+        isActive: r.subscription?.status === "active",
+        plan: r.subscription?.plan ?? "free",
+      }));
 
       sendSuccess(res, {
         referralCode: user.referralCode,
         referralLink: `https://owotrack.com/join?ref=${user.referralCode}`,
-        totalReferrals: referralCount,
+        totalReferrals: referrals.length,
+        referrals: referralList,
       });
     } catch (err) {
       next(err);

@@ -9,5 +9,6 @@ router.use(authenticate);
 router.get("/daily", reportsController.daily);
 router.get("/weekly", reportsController.weekly);
 router.get("/monthly", reportsController.monthly);
+router.get("/export", reportsController.export);
 
 export default router;

@@ -9,7 +9,8 @@ export const advisorController = {
     try {
       const user = await User.findById(req.userId).lean();
       const userName = user?.name ?? "Trader";
-      const result = await advisorService.getTip(req.userId!, userName);
+      const language = user?.preferredLanguage ?? "pidgin";
+      const result = await advisorService.getTip(req.userId!, userName, language);
       sendSuccess(res, result);
     } catch (err) { next(err); }
   },
@@ -18,7 +19,8 @@ export const advisorController = {
     try {
       const user = await User.findById(req.userId).lean();
       const userName = user?.name ?? "Trader";
-      const result = await advisorService.getGreeting(req.userId!, userName);
+      const language = user?.preferredLanguage ?? "pidgin";
+      const result = await advisorService.getGreeting(req.userId!, userName, language);
       sendSuccess(res, result);
     } catch (err) { next(err); }
   },
@@ -28,7 +30,8 @@ export const advisorController = {
       const { message, history = [] } = req.body as { message: string; history: ChatMessage[] };
       const user = await User.findById(req.userId).lean();
       const userName = user?.name ?? "Trader";
-      const result = await advisorService.chat(req.userId!, userName, message, history);
+      const language = user?.preferredLanguage ?? "pidgin";
+      const result = await advisorService.chat(req.userId!, userName, message, history, language);
       sendSuccess(res, result);
     } catch (err) { next(err); }
   },
@@ -38,7 +41,8 @@ export const advisorController = {
       const { message, history = [] } = req.body as { message: string; history: ChatMessage[] };
       const user = await User.findById(req.userId).lean();
       const userName = user?.name ?? "Trader";
-      await advisorService.chatStream(req.userId!, userName, message, history, res);
+      const language = user?.preferredLanguage ?? "pidgin";
+      await advisorService.chatStream(req.userId!, userName, message, history, res, language);
     } catch (err) { next(err); }
   },
 };

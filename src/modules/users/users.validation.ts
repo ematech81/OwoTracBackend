@@ -18,7 +18,7 @@ export const updateProfileSchema = z.object({
     })
     .optional(),
   preferredLanguage: z
-    .enum(["pidgin", "yoruba", "igbo", "hausa", "english"])
+    .enum(["pidgin", "english"])
     .optional(),
   currency: z.string().length(3).optional(),
 });

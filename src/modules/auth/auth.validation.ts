@@ -38,7 +38,7 @@ export const registerSchema = z.object({
     })
     .optional(),
   preferredLanguage: z
-    .enum(["pidgin", "yoruba", "igbo", "hausa", "english"])
+    .enum(["pidgin", "english"])
     .default("pidgin"),
   pin: pinSchema,
   referralCode: z.string().optional(),

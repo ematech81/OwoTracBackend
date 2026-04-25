@@ -14,6 +14,7 @@ import { requireAppKey } from "./middleware/appKey";
 
 import { startCreditOverdueJob } from "./jobs/creditOverdue.job";
 import { startDailySummaryJob } from "./jobs/dailySummary.job";
+import { startReferralRewardExpiryJob } from "./jobs/referralRewardExpiry.job";
 import authRoutes from "./modules/auth/auth.routes";
 import userRoutes from "./modules/users/users.routes";
 import salesRoutes from "./modules/sales/sales.routes";
@@ -68,6 +69,7 @@ const start = async () => {
   if (env.NODE_ENV !== "test") {
     startCreditOverdueJob();
     startDailySummaryJob();
+    startReferralRewardExpiryJob();
   }
 
   app.listen(env.PORT, () => {

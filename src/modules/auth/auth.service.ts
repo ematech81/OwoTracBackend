@@ -6,6 +6,7 @@ import { generateOtp, storeOtp, verifyOtp } from "../../utils/otp";
 import { sendOtpSms } from "../../utils/sms";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../../utils/jwt";
 import { generateReferralCode } from "../../utils/referral";
+import { notificationService } from "../notifications/notification.service";
 import { redis } from "../../config/redis";
 import { env } from "../../config/env";
 
@@ -51,7 +52,7 @@ export const authService = {
     businessName?: string;
     businessType?: string;
     location?: { state?: string; city?: string; market?: string };
-    preferredLanguage: "pidgin" | "yoruba" | "igbo" | "hausa" | "english";
+    preferredLanguage: "pidgin" | "english";
     pin: string;
     referralCode?: string;
   }) {
@@ -76,9 +77,16 @@ export const authService = {
     const referralCode = await generateReferralCode();
 
     let referredBy;
+    let referrerPushToken: string | undefined;
+    let referrerName: string | undefined;
     if (data.referralCode) {
-      const referrer = await User.findOne({ referralCode: data.referralCode });
-      if (referrer) referredBy = referrer._id;
+      const referrer = await User.findOne({ referralCode: data.referralCode })
+        .select("_id name notifications");
+      if (referrer) {
+        referredBy = referrer._id;
+        referrerPushToken = referrer.notifications?.pushToken;
+        referrerName = referrer.name;
+      }
     }
 
     const user = await User.create({
@@ -95,6 +103,49 @@ export const authService = {
     });
 
     await redis.del(`${TEMP_TOKEN_PREFIX}${data.phone}`);
+
+    // Notify the referrer and check for referral reward
+    if (referredBy) {
+      const newUserFirstName = data.name.trim().split(" ")[0];
+
+      if (referrerPushToken) {
+        notificationService.send(
+          referrerPushToken,
+          "🎉 Someone joined using your code!",
+          `${newUserFirstName} just signed up to OwoTrack with your referral code. Keep sharing!`,
+          { type: "referral_signup", referredUserId: user._id.toString() }
+        ).catch(() => {});
+      }
+
+      // Check referral reward: grant one-time 30-day Growth plan at 10 referrals
+      const referrer = await User.findById(referredBy).select(
+        "hasUsedReferralReward subscription notifications"
+      );
+      if (referrer && !referrer.hasUsedReferralReward) {
+        const referralCount = await User.countDocuments({ referredBy });
+        if (referralCount >= 10) {
+          const now = new Date();
+          const rewardExpiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+          await User.findByIdAndUpdate(referredBy, {
+            "subscription.plan": "growth",
+            "subscription.status": "active",
+            "subscription.startDate": now,
+            "subscription.expiresAt": rewardExpiresAt,
+            hasUsedReferralReward: true,
+            referralRewardExpiresAt: rewardExpiresAt,
+          });
+          const rewardToken = referrer.notifications?.pushToken;
+          if (rewardToken) {
+            notificationService.send(
+              rewardToken,
+              "🏆 You've unlocked a free Growth plan!",
+              "You referred 10 users! Enjoy 30 days of Growth plan — free. Thank you for growing OwoTrack!",
+              { type: "referral_reward" }
+            ).catch(() => {});
+          }
+        }
+      }
+    }
 
     const accessToken = signAccessToken(user._id.toString());
     const refreshToken = signRefreshToken(user._id.toString());
@@ -197,6 +248,8 @@ const sanitizeUser = (user: InstanceType<typeof User>) => ({
   healthScore: user.healthScore,
   loanEligible: user.loanEligible,
   referralCode: user.referralCode,
+  hasUsedReferralReward: user.hasUsedReferralReward,
+  referralRewardExpiresAt: user.referralRewardExpiresAt,
   streakDays: user.streakDays,
   isPhoneVerified: user.isPhoneVerified,
   notifications: {
