@@ -17,6 +17,11 @@ export const createSaleSchema = z.object({
   inputMethod: z.enum(["voice", "text", "manual_form"]).default("manual_form"),
   rawInput: z.string().optional(),
   localId: z.string().optional(),
+  customerName: z.string().trim().optional(),
+  invoiceNumber: z.string().trim().optional(),
+  discount: z.number().min(0).default(0),
+  discountType: z.enum(["fixed", "percent"]).default("fixed"),
+  tax: z.number().min(0).default(0),
 });
 
 export const updateSaleSchema = z.object({

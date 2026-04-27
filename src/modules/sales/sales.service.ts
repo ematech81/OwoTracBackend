@@ -1,5 +1,6 @@
 import { Sale, ISale, ISaleItem } from "./sale.model";
 import { StockItem } from "../stock/stock.model";
+import { User } from "../users/user.model";
 import { AppError } from "../../middleware/errorHandler";
 import { parseSaleText } from "../ai/parseService";
 import mongoose from "mongoose";
@@ -17,7 +18,6 @@ async function deductStock(userId: string, items: ISaleItem[]): Promise<void> {
           isDeleted: false,
           name: { $regex: new RegExp(`^${escapeRegex(item.productName.trim())}$`, "i") },
         },
-        // Atomic: floor at 0 so qty never goes negative
         [{ $set: { qty: { $max: [0, { $subtract: ["$qty", item.quantity] }] } } }]
       )
     )
@@ -39,13 +39,56 @@ async function restoreStock(userId: string, items: ISaleItem[]): Promise<void> {
   );
 }
 
-const computeTotals = (items: ISaleItem[]) => {
-  const totalAmount = items.reduce((s, i) => s + i.totalAmount, 0);
+function computeTotals(
+  items: ISaleItem[],
+  discount = 0,
+  discountType: "fixed" | "percent" = "fixed",
+  tax = 0
+) {
+  const subtotal = items.reduce((s, i) => s + i.totalAmount, 0);
   const totalCostOfGoods = items.reduce((s, i) => s + i.costPrice * i.quantity, 0);
-  const totalProfit = totalAmount - totalCostOfGoods;
-  const profitMargin = totalAmount > 0 ? Math.round((totalProfit / totalAmount) * 100 * 10) / 10 : 0;
-  return { totalAmount, totalCostOfGoods, totalProfit, profitMargin };
-};
+
+  const discountAmount = discountType === "percent"
+    ? subtotal * discount / 100
+    : Math.min(discount, subtotal);
+  const afterDiscount = Math.max(0, subtotal - discountAmount);
+  const taxAmount = afterDiscount * tax / 100;
+  const totalAmount = afterDiscount + taxAmount;
+
+  const totalProfit = afterDiscount - totalCostOfGoods;
+  const profitMargin = subtotal > 0
+    ? Math.round((totalProfit / subtotal) * 100 * 10) / 10
+    : 0;
+
+  return { subtotal, discountAmount, taxAmount, totalAmount, totalCostOfGoods, totalProfit, profitMargin };
+}
+
+async function updateStreak(userId: string): Promise<void> {
+  const user = await User.findById(userId).select("streakDays lastRecordDate");
+  if (!user) return;
+
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+
+  const lastDate = user.lastRecordDate ? new Date(user.lastRecordDate) : null;
+  if (lastDate) lastDate.setHours(0, 0, 0, 0);
+
+  // Already recorded today — streak unchanged, just refresh the timestamp
+  if (lastDate && lastDate.getTime() === todayStart.getTime()) return;
+
+  const yesterday = new Date(todayStart);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  const newStreak =
+    lastDate && lastDate.getTime() === yesterday.getTime()
+      ? user.streakDays + 1   // consecutive day
+      : 1;                     // first ever OR gap of 2+ days → reset
+
+  await User.findByIdAndUpdate(userId, {
+    streakDays: newStreak,
+    lastRecordDate: todayStart,
+  });
+}
 
 const enrichItems = (rawItems: Omit<ISaleItem, "profit" | "totalAmount">[]): ISaleItem[] =>
   rawItems.map((item) => ({
@@ -63,24 +106,36 @@ export const salesService = {
     inputMethod: ISale["inputMethod"];
     rawInput?: string;
     localId?: string;
+    customerName?: string;
+    invoiceNumber?: string;
+    discount?: number;
+    discountType?: "fixed" | "percent";
+    tax?: number;
   }) {
     const items = enrichItems(body.items);
-    const totals = computeTotals(items);
+    const totals = computeTotals(items, body.discount, body.discountType, body.tax);
 
     const sale = await Sale.create({
       userId,
       date: new Date(body.date),
       items,
       ...totals,
+      discount: body.discount ?? 0,
+      discountType: body.discountType ?? "fixed",
+      tax: body.tax ?? 0,
       paymentType: body.paymentType,
       inputMethod: body.inputMethod,
       rawInput: body.rawInput,
       notes: body.notes,
       localId: body.localId,
+      customerName: body.customerName,
+      invoiceNumber: body.invoiceNumber,
       syncStatus: "synced",
     });
 
     await deductStock(userId, items);
+    // Fire-and-forget — streak update must not block the sale response
+    updateStreak(userId).catch(() => {});
 
     return sale;
   },
@@ -137,10 +192,9 @@ export const salesService = {
       const oldItems = [...sale.items];
       const newItems = enrichItems(body.items);
       sale.items = newItems;
-      const totals = computeTotals(newItems);
+      const totals = computeTotals(newItems, sale.discount, sale.discountType, sale.tax);
       Object.assign(sale, totals);
       await sale.save();
-      // Reverse the old deduction, apply the new one
       await restoreStock(userId, oldItems);
       await deductStock(userId, newItems);
     } else {
@@ -155,7 +209,6 @@ export const salesService = {
     if (!sale) throw new AppError(404, "Sale not found", "NOT_FOUND");
     sale.isDeleted = true;
     await sale.save();
-    // Restore stock quantities since this sale is being undone
     await restoreStock(userId, sale.items);
   },
 

@@ -16,6 +16,12 @@ export interface ISale extends Document {
   userId: mongoose.Types.ObjectId;
   date: Date;
   items: ISaleItem[];
+  subtotal: number;
+  discount: number;
+  discountType: "fixed" | "percent";
+  discountAmount: number;
+  tax: number;
+  taxAmount: number;
   totalAmount: number;
   totalCostOfGoods: number;
   totalProfit: number;
@@ -24,6 +30,8 @@ export interface ISale extends Document {
   inputMethod: "voice" | "text" | "manual_form";
   rawInput?: string;
   notes?: string;
+  customerName?: string;
+  invoiceNumber?: string;
   syncStatus: "synced" | "pending" | "failed";
   localId?: string;
   isDeleted: boolean;
@@ -50,6 +58,12 @@ const saleSchema = new Schema<ISale>(
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     date: { type: Date, required: true, index: true },
     items: { type: [saleItemSchema], required: true },
+    subtotal: { type: Number, default: 0 },
+    discount: { type: Number, default: 0, min: 0 },
+    discountType: { type: String, enum: ["fixed", "percent"], default: "fixed" },
+    discountAmount: { type: Number, default: 0, min: 0 },
+    tax: { type: Number, default: 0, min: 0 },
+    taxAmount: { type: Number, default: 0, min: 0 },
     totalAmount: { type: Number, required: true, min: 0 },
     totalCostOfGoods: { type: Number, default: 0 },
     totalProfit: { type: Number, default: 0 },
@@ -66,6 +80,8 @@ const saleSchema = new Schema<ISale>(
     },
     rawInput: String,
     notes: String,
+    customerName: { type: String, trim: true },
+    invoiceNumber: { type: String, trim: true, index: true, sparse: true },
     syncStatus: {
       type: String,
       enum: ["synced", "pending", "failed"],

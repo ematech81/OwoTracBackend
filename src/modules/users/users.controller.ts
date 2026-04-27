@@ -1,6 +1,9 @@
 import { Response, NextFunction } from "express";
 import { AuthRequest } from "../../middleware/auth.middleware";
 import { User } from "./user.model";
+import { Sale } from "../sales/sale.model";
+import { Credit } from "../credits/credit.model";
+import { Expense } from "../expenses/expense.model";
 import { AppError } from "../../middleware/errorHandler";
 import { sendSuccess } from "../../utils/response";
 
@@ -79,19 +82,89 @@ export const usersController = {
 
   async getStats(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const user = await User.findById(req.userId).select(
-        "streakDays healthScore loanEligible createdAt"
+      const userId = req.userId!;
+      const user = await User.findById(userId).select(
+        "streakDays healthScore loanEligible createdAt subscription"
       );
       if (!user) throw new AppError(404, "User not found", "USER_NOT_FOUND");
 
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const accountAgeMs = Date.now() - new Date(user.createdAt).getTime();
+      const accountAgeDays = Math.floor(accountAgeMs / (24 * 60 * 60 * 1000));
+
+      const [sales30, salesAll, expenses30, credits] = await Promise.all([
+        Sale.find({ userId, isDeleted: false, date: { $gte: thirtyDaysAgo } }).lean(),
+        Sale.find({ userId, isDeleted: false }).lean(),
+        Expense.find({ userId, isDeleted: false, date: { $gte: thirtyDaysAgo } }).lean(),
+        Credit.find({ userId, isDeleted: false }).lean(),
+      ]);
+
+      // ── All-time totals ──────────────────────────────────────────────────────
+      const totalSalesAllTime = salesAll.reduce((s, x) => s + x.totalAmount, 0);
+      const totalProfitAllTime = salesAll.reduce((s, x) => s + x.totalProfit, 0);
+      const salesDaysAll = new Set(salesAll.map((s) => new Date(s.date).toISOString().slice(0, 10)));
+      const totalDaysActive = salesDaysAll.size;
+
+      // ── Health Score (0–100) ─────────────────────────────────────────────────
+      //
+      // 1. Sales consistency (25 pts): how many of the last 30 days had a sale
+      const salesDays30 = new Set(sales30.map((s) => new Date(s.date).toISOString().slice(0, 10)));
+      const consistencyScore = Math.round((salesDays30.size / 30) * 25);
+
+      // 2. Profit margin (25 pts): avg profit margin over 30 days, full score at ≥30%
+      const avgMargin = sales30.length > 0
+        ? sales30.reduce((s, x) => s + x.profitMargin, 0) / sales30.length
+        : 0;
+      const profitScore = Math.min(25, Math.round((avgMargin / 30) * 25));
+
+      // 3. Expense control (20 pts): profit ratio — how much of revenue becomes profit
+      const revenue30 = sales30.reduce((s, x) => s + x.totalAmount, 0);
+      const profit30  = sales30.reduce((s, x) => s + x.totalProfit, 0);
+      const profitRatio = revenue30 > 0 ? profit30 / revenue30 : 0;
+      const expenseScore = Math.min(20, Math.round(profitRatio * 20));
+
+      // 4. Credit health (15 pts): overdue credits are a negative signal
+      const activeCredits = credits.filter((c) => c.status !== "paid");
+      const overdueCredits = credits.filter((c) => c.status === "overdue");
+      const creditRatio = activeCredits.length > 0
+        ? 1 - overdueCredits.length / activeCredits.length
+        : 1;
+      const creditScore = Math.round(creditRatio * 15);
+
+      // 5. Streak bonus (15 pts): 1 pt per streak day, capped at 15
+      const streakScore = Math.min(15, user.streakDays);
+
+      const healthScore = consistencyScore + profitScore + expenseScore + creditScore + streakScore;
+
+      // ── Loan Eligibility ─────────────────────────────────────────────────────
+      // Internally scored — no third-party integration yet.
+      // Criteria: health ≥ 60, streak ≥ 5, account ≥ 30 days old, ≥ 10 sales in last 30 days.
+      const loanEligible =
+        healthScore >= 60 &&
+        user.streakDays >= 5 &&
+        accountAgeDays >= 30 &&
+        sales30.length >= 10;
+
+      // Persist updated values so profile reads are cheap
+      await User.findByIdAndUpdate(userId, { healthScore, loanEligible });
+
       sendSuccess(res, {
-        totalSalesAllTime: 0,
-        totalProfitAllTime: 0,
-        totalDaysActive: 0,
+        totalSalesAllTime,
+        totalProfitAllTime,
+        totalDaysActive,
         streakDays: user.streakDays,
-        healthScore: user.healthScore,
-        loanEligible: user.loanEligible,
+        healthScore,
+        loanEligible,
         memberSince: user.createdAt,
+        accountAgeDays,
+        // breakdown for transparency
+        scoreBreakdown: {
+          salesConsistency: consistencyScore,   // max 25
+          profitMargin: profitScore,             // max 25
+          expenseControl: expenseScore,          // max 20
+          creditHealth: creditScore,             // max 15
+          streakBonus: streakScore,              // max 15
+        },
       });
     } catch (err) {
       next(err);

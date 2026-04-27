@@ -91,7 +91,7 @@ export const reportsController = {
       const totalExpenses = expenses.reduce((s, x) => s + x.amount, 0);
       const netProfit = totalProfit - totalExpenses;
       const totalOutstanding = credits.reduce((s, x) => s + x.balance, 0);
-      const stockValue = stock.reduce((s, x) => s + x.sellingPrice * x.quantity, 0);
+      const stockValue = stock.reduce((s, x) => s + x.sellingPrice * x.qty, 0);
 
       sendSuccess(res, {
         meta: {
@@ -135,10 +135,10 @@ export const reportsController = {
         stock: stock.map((s) => ({
           name: s.name,
           category: s.category,
-          quantity: s.quantity,
+          quantity: s.qty,
           sellingPrice: s.sellingPrice,
           costPrice: s.costPrice,
-          value: s.sellingPrice * s.quantity,
+          value: s.sellingPrice * s.qty,
         })),
       });
     } catch (err) { next(err); }
