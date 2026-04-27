@@ -2,6 +2,8 @@ import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import { User } from "../users/user.model";
 import { Sale } from "../sales/sale.model";
+import { Expense } from "../expenses/expense.model";
+import { Credit } from "../credits/credit.model";
 
 const ADMIN_JWT_SECRET = process.env.ADMIN_JWT_SECRET || process.env.JWT_ACCESS_SECRET || "admin-fallback-secret";
 
@@ -214,6 +216,78 @@ export const adminController = {
       res.json({ success: true, data: { isActive: user.isActive } });
     } catch (err) {
       console.error("[admin] toggleUserStatus error:", err);
+      res.status(500).json({ success: false, message: "Server error" });
+    }
+  },
+
+  listSubscriptions: async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { page = "1", limit = "20", plan = "", status = "" } = req.query;
+      const query: Record<string, unknown> = {};
+      if (plan) query["subscription.plan"] = plan;
+      if (status) query["subscription.status"] = status;
+
+      const pageNum = parseInt(page as string, 10);
+      const limitNum = parseInt(limit as string, 10);
+      const skip = (pageNum - 1) * limitNum;
+
+      const [users, total] = await Promise.all([
+        User.find(query)
+          .select("name phone businessName subscription isActive createdAt")
+          .sort({ "subscription.expiresAt": -1 })
+          .skip(skip)
+          .limit(limitNum),
+        User.countDocuments(query),
+      ]);
+
+      res.json({ success: true, data: { subscriptions: users, total, page: pageNum, limit: limitNum } });
+    } catch (err) {
+      console.error("[admin] listSubscriptions error:", err);
+      res.status(500).json({ success: false, message: "Server error" });
+    }
+  },
+
+  getLogs: async (_req: Request, res: Response): Promise<void> => {
+    try {
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+      const [
+        failedSyncs,
+        pendingSyncs,
+        expiredSubs,
+        cancelledSubs,
+        disabledUsers,
+        overdueCredits,
+        recentRegistrations,
+        recentExpenses,
+      ] = await Promise.all([
+        Sale.countDocuments({ syncStatus: "failed" }),
+        Sale.countDocuments({ syncStatus: "pending" }),
+        User.countDocuments({ "subscription.status": "expired" }),
+        User.countDocuments({ "subscription.status": "cancelled" }),
+        User.countDocuments({ isActive: false }),
+        Credit.countDocuments({ status: "overdue" }),
+        User.find({ createdAt: { $gte: sevenDaysAgo } })
+          .select("name phone businessName createdAt subscription.plan")
+          .sort({ createdAt: -1 })
+          .limit(20),
+        Expense.find()
+          .populate("userId", "name phone")
+          .select("description amount date category userId")
+          .sort({ date: -1 })
+          .limit(10),
+      ]);
+
+      res.json({
+        success: true,
+        data: {
+          health: { failedSyncs, pendingSyncs, expiredSubs, cancelledSubs, disabledUsers, overdueCredits },
+          recentRegistrations,
+          recentExpenses,
+        },
+      });
+    } catch (err) {
+      console.error("[admin] getLogs error:", err);
       res.status(500).json({ success: false, message: "Server error" });
     }
   },

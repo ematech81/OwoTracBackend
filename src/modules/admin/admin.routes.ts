@@ -13,6 +13,8 @@ router.get("/users", adminController.listUsers);
 router.get("/users/:id", adminController.getUser);
 router.patch("/users/:id/subscription", adminController.updateSubscription);
 router.patch("/users/:id/status", adminController.toggleUserStatus);
+router.get("/subscriptions", adminController.listSubscriptions);
+router.get("/logs", adminController.getLogs);
 router.get("/transactions", adminController.listTransactions);
 
 export default router;
