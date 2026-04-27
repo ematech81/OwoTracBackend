@@ -1,6 +1,14 @@
 import dotenv from "dotenv";
 dotenv.config();
 
+console.log("ENV CHECK:", {
+  MONGODB_URI: process.env.MONGODB_URI ? "SET" : "MISSING",
+  JWT_ACCESS_SECRET: process.env.JWT_ACCESS_SECRET ? "SET" : "MISSING",
+  JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET ? "SET" : "MISSING",
+  OPENAI_API_KEY: process.env.OPENAI_API_KEY ? "SET" : "MISSING",
+  NODE_ENV: process.env.NODE_ENV,
+});
+
 const required = (key: string): string => {
   const val = process.env[key];
   if (!val) throw new Error(`Missing required env var: ${key}`);
