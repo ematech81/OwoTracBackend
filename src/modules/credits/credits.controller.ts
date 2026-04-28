@@ -40,6 +40,18 @@ export const creditsController = {
     } catch (err) { next(err); }
   },
 
+  async updatePhone(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const { phone } = req.body;
+      if (!phone || typeof phone !== "string") {
+        res.status(400).json({ success: false, message: "Phone number is required" });
+        return;
+      }
+      const credit = await creditsService.updatePhone(req.userId!, req.params.id, phone.trim());
+      sendSuccess(res, credit, "Phone updated");
+    } catch (err) { next(err); }
+  },
+
   async delete(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       await creditsService.delete(req.userId!, req.params.id);

@@ -51,6 +51,16 @@ export const creditsService = {
     return credit;
   },
 
+  async updatePhone(userId: string, id: string, phone: string) {
+    const credit = await Credit.findOneAndUpdate(
+      { _id: id, userId, isDeleted: false },
+      { customerPhone: phone },
+      { new: true }
+    );
+    if (!credit) throw new AppError(404, "Credit not found", "NOT_FOUND");
+    return credit;
+  },
+
   async delete(userId: string, id: string) {
     const credit = await Credit.findOne({ _id: id, userId, isDeleted: false });
     if (!credit) throw new AppError(404, "Credit not found", "NOT_FOUND");

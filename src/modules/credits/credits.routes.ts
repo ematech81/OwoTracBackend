@@ -14,6 +14,7 @@ router.get("/", creditsController.list);
 router.post("/", guardCredits, validate(createCreditSchema), creditsController.create);
 router.get("/:id", creditsController.getById);
 router.post("/:id/payment", validate(recordPaymentSchema), creditsController.recordPayment);
+router.patch("/:id/phone", creditsController.updatePhone);
 router.delete("/:id", creditsController.delete);
 
 export default router;
