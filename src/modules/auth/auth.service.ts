@@ -8,6 +8,7 @@ import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../../uti
 import { generateReferralCode } from "../../utils/referral";
 import { notificationService } from "../notifications/notification.service";
 import { redis } from "../../config/redis";
+import { adminNotify } from "../../utils/adminNotify";
 import { env } from "../../config/env";
 
 const TEMP_TOKEN_PREFIX = "temptoken:";
@@ -103,6 +104,12 @@ export const authService = {
     });
 
     await redis.del(`${TEMP_TOKEN_PREFIX}${data.phone}`);
+
+    adminNotify("NEW_USER", `${user.name} (${user.phone}) just registered`, {
+      userId: user._id.toString(),
+      name: user.name,
+      phone: user.phone,
+    }).catch(() => {});
 
     // Notify the referrer and check for referral reward
     if (referredBy) {

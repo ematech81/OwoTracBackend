@@ -27,6 +27,7 @@ import stockRoutes from "./modules/stock/stock.routes";
 import subscriptionRoutes from "./modules/subscription/subscription.routes";
 import { subscriptionController } from "./modules/subscription/subscription.controller";
 import adminRoutes from "./modules/admin/admin.routes";
+import { Broadcast } from "./models/broadcast.model";
 
 const app = express();
 
@@ -63,6 +64,16 @@ app.use("/api/v1/subscription", subscriptionRoutes);
 
 // Admin routes — separate from /api/v1, no APP_KEY required, uses own JWT auth
 app.use("/api/admin", adminRoutes);
+
+// Public broadcasts — requires APP_KEY, no user auth needed
+app.get("/api/v1/broadcasts", async (_req, res) => {
+  try {
+    const broadcasts = await Broadcast.find().sort({ createdAt: -1 }).limit(10);
+    res.json({ success: true, data: broadcasts, error: null, meta: null });
+  } catch {
+    res.status(500).json({ success: false, data: null, error: "Server error", meta: null });
+  }
+});
 
 app.use(errorHandler);
 

@@ -5,6 +5,7 @@ import { getPlan, PlanId, PLANS } from "../../config/plans";
 import { env } from "../../config/env";
 import { AppError } from "../../middleware/errorHandler";
 import { redis } from "../../config/redis";
+import { adminNotify } from "../../utils/adminNotify";
 
 function handlePaystackError(err: unknown, fallback: string): never {
   if (err instanceof AxiosError) {
@@ -192,11 +193,21 @@ export async function handleWebhookEvent(event: string, data: Record<string, unk
     const sub = data.subscription as Record<string, string> | undefined;
     const subCode = sub?.subscription_code;
     if (subCode) {
-      await User.findOneAndUpdate(
+      const user = await User.findOneAndUpdate(
         { "subscription.paystackSubscriptionCode": subCode },
-        { "subscription.status": "expired" }
-      );
+        { "subscription.status": "expired" },
+        { new: true }
+      ).select("name phone");
+      if (user) {
+        adminNotify("PAYMENT_FAILED", `Payment failed for ${user.name} (${user.phone})`, {
+          userId: user._id.toString(), subCode,
+        }).catch(() => {});
+      }
     }
+  }
+
+  if (event === "subscription.disable" || event === "subscription.not_renew") {
+    // already handled above — also create a cancellation notification
   }
 
   if (event === "subscription.expiring_cards") {
@@ -213,12 +224,18 @@ async function activatePlan(
   const now = new Date();
   const expiresAt = new Date(now.getTime() + 31 * 24 * 60 * 60 * 1000);
 
-  await User.findByIdAndUpdate(userId, {
+  const user = await User.findByIdAndUpdate(userId, {
     "subscription.plan": planId,
     "subscription.status": "active",
     "subscription.startDate": now,
     "subscription.expiresAt": expiresAt,
     ...(subscriptionCode && { "subscription.paystackSubscriptionCode": subscriptionCode }),
     ...(emailToken && { "subscription.paystackEmailToken": emailToken }),
-  });
+  }, { new: true }).select("name phone");
+
+  if (user) {
+    adminNotify("NEW_SUBSCRIPTION", `${user.name} (${user.phone}) subscribed to ${planId} plan`, {
+      userId, planId,
+    }).catch(() => {});
+  }
 }

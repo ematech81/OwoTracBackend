@@ -4,6 +4,8 @@ import { User } from "../users/user.model";
 import { Sale } from "../sales/sale.model";
 import { Expense } from "../expenses/expense.model";
 import { Credit } from "../credits/credit.model";
+import { Broadcast } from "../../models/broadcast.model";
+import { AdminNotification } from "../../models/adminNotification.model";
 
 const ADMIN_JWT_SECRET = process.env.ADMIN_JWT_SECRET || process.env.JWT_ACCESS_SECRET || "admin-fallback-secret";
 
@@ -288,6 +290,83 @@ export const adminController = {
       });
     } catch (err) {
       console.error("[admin] getLogs error:", err);
+      res.status(500).json({ success: false, message: "Server error" });
+    }
+  },
+
+  // ── Broadcasts ──────────────────────────────────────────────────────────────
+  createBroadcast: async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { title, content } = req.body;
+      if (!title?.trim() || !content?.trim()) {
+        res.status(400).json({ success: false, message: "Title and content are required" });
+        return;
+      }
+      const broadcast = await Broadcast.create({ title: title.trim(), content: content.trim() });
+      res.status(201).json({ success: true, data: broadcast });
+    } catch (err) {
+      console.error("[admin] createBroadcast error:", err);
+      res.status(500).json({ success: false, message: "Server error" });
+    }
+  },
+
+  listBroadcasts: async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { page = "1", limit = "20" } = req.query;
+      const pageNum = parseInt(page as string, 10);
+      const limitNum = parseInt(limit as string, 10);
+      const [broadcasts, total] = await Promise.all([
+        Broadcast.find().sort({ createdAt: -1 }).skip((pageNum - 1) * limitNum).limit(limitNum),
+        Broadcast.countDocuments(),
+      ]);
+      res.json({ success: true, data: { broadcasts, total, page: pageNum, limit: limitNum } });
+    } catch (err) {
+      console.error("[admin] listBroadcasts error:", err);
+      res.status(500).json({ success: false, message: "Server error" });
+    }
+  },
+
+  deleteBroadcast: async (req: Request, res: Response): Promise<void> => {
+    try {
+      await Broadcast.findByIdAndDelete(req.params.id);
+      res.json({ success: true, data: null });
+    } catch (err) {
+      console.error("[admin] deleteBroadcast error:", err);
+      res.status(500).json({ success: false, message: "Server error" });
+    }
+  },
+
+  // ── Admin Notifications ─────────────────────────────────────────────────────
+  listNotifications: async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { limit = "30" } = req.query;
+      const [notifications, unreadCount] = await Promise.all([
+        AdminNotification.find().sort({ createdAt: -1 }).limit(parseInt(limit as string, 10)),
+        AdminNotification.countDocuments({ isRead: false }),
+      ]);
+      res.json({ success: true, data: { notifications, unreadCount } });
+    } catch (err) {
+      console.error("[admin] listNotifications error:", err);
+      res.status(500).json({ success: false, message: "Server error" });
+    }
+  },
+
+  markNotificationRead: async (req: Request, res: Response): Promise<void> => {
+    try {
+      await AdminNotification.findByIdAndUpdate(req.params.id, { isRead: true });
+      res.json({ success: true, data: null });
+    } catch (err) {
+      console.error("[admin] markNotificationRead error:", err);
+      res.status(500).json({ success: false, message: "Server error" });
+    }
+  },
+
+  markAllNotificationsRead: async (_req: Request, res: Response): Promise<void> => {
+    try {
+      await AdminNotification.updateMany({ isRead: false }, { isRead: true });
+      res.json({ success: true, data: null });
+    } catch (err) {
+      console.error("[admin] markAllNotificationsRead error:", err);
       res.status(500).json({ success: false, message: "Server error" });
     }
   },
