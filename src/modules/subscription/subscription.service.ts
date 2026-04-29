@@ -6,6 +6,7 @@ import { env } from "../../config/env";
 import { AppError } from "../../middleware/errorHandler";
 import { redis } from "../../config/redis";
 import { adminNotify } from "../../utils/adminNotify";
+import { userNotify } from "../../utils/userNotify";
 
 function handlePaystackError(err: unknown, fallback: string): never {
   if (err instanceof AxiosError) {
@@ -150,6 +151,7 @@ export async function cancelSubscription(userId: string): Promise<void> {
   }
 
   await User.findByIdAndUpdate(userId, { "subscription.status": "cancelled" });
+  userNotify(userId, "SUBSCRIPTION_CANCELLED", "Subscription Cancelled", "Your subscription has been cancelled. You can re-subscribe at any time.");
 }
 
 export function verifyWebhookSignature(rawBody: Buffer, signature: string): boolean {
@@ -199,9 +201,11 @@ export async function handleWebhookEvent(event: string, data: Record<string, unk
         { new: true }
       ).select("name phone");
       if (user) {
+        const failedUserId = user._id.toString();
         adminNotify("PAYMENT_FAILED", `Payment failed for ${user.name} (${user.phone})`, {
-          userId: user._id.toString(), subCode,
+          userId: failedUserId, subCode,
         }).catch(() => {});
+        userNotify(failedUserId, "PAYMENT_FAILED", "Payment Failed", "Your subscription payment could not be processed. Please update your payment method.");
       }
     }
   }
@@ -237,5 +241,6 @@ async function activatePlan(
     adminNotify("NEW_SUBSCRIPTION", `${user.name} (${user.phone}) subscribed to ${planId} plan`, {
       userId, planId,
     }).catch(() => {});
+    userNotify(userId, "SUBSCRIPTION_ACTIVATED", "Subscription Activated", `Your ${planId} plan is now active. Enjoy full access!`, { planId });
   }
 }

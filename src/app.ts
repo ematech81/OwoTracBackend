@@ -27,6 +27,7 @@ import stockRoutes from "./modules/stock/stock.routes";
 import subscriptionRoutes from "./modules/subscription/subscription.routes";
 import { subscriptionController } from "./modules/subscription/subscription.controller";
 import adminRoutes from "./modules/admin/admin.routes";
+import notificationRoutes from "./modules/notifications/notifications.routes";
 import { Broadcast } from "./models/broadcast.model";
 
 const app = express();
@@ -60,6 +61,7 @@ app.use("/api/v1/reports", reportsRoutes);
 app.use("/api/v1/advisor", advisorRoutes);
 app.use("/api/v1/stock", stockRoutes);
 app.use("/api/v1/subscription", subscriptionRoutes);
+app.use("/api/v1/notifications", notificationRoutes);
 
 // Admin routes — separate from /api/v1, no APP_KEY required, uses own JWT auth
 app.use("/api/admin", adminRoutes);
