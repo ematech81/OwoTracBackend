@@ -10,7 +10,7 @@ import { connectRedis } from "./config/redis";
 import { logger } from "./config/logger";
 import { globalLimiter } from "./middleware/rateLimiter";
 import { errorHandler } from "./middleware/errorHandler";
-import { requireAppKey } from "./middleware/appKey";
+// import { requireAppKey } from "./middleware/appKey";
 
 import { startCreditOverdueJob } from "./jobs/creditOverdue.job";
 import { startDailySummaryJob } from "./jobs/dailySummary.job";
@@ -45,7 +45,6 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan("dev", { stream: { write: (msg) => logger.info(msg.trim()) } }));
 app.use(globalLimiter);
-app.use("/api/v1", requireAppKey);
 
 app.get("/health", (_req, res) => {
   res.json({ success: true, message: "OwoTrack API is running", data: null, error: null, meta: null });
