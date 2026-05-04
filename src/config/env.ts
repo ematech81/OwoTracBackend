@@ -56,8 +56,9 @@ export const env = {
   PAYSTACK_PLAN_PRO: process.env.PAYSTACK_PLAN_PRO || "",
   PAYSTACK_PLAN_BUSINESS: process.env.PAYSTACK_PLAN_BUSINESS || "",
 
-  TERMII_API_KEY: process.env.TERMII_API_KEY || "",
-  TERMII_SENDER_ID: process.env.TERMII_SENDER_ID || "OwoTrack",
+  TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID || "",
+  TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN || "",
+  TWILIO_PHONE_NUMBER: process.env.TWILIO_PHONE_NUMBER || "",
   FORCE_CONSOLE_OTP: process.env.FORCE_CONSOLE_OTP === "true",
 
   SENDGRID_API_KEY: process.env.SENDGRID_API_KEY || "",
