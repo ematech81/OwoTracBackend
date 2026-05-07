@@ -3,7 +3,31 @@ import { AppError } from "../../middleware/errorHandler";
 
 const DUE_SOON_DAYS = 7;
 
+async function refreshStatuses(): Promise<void> {
+  const now = new Date();
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
+  const sevenDaysFromNow = new Date(todayStart.getTime() + DUE_SOON_DAYS * 24 * 60 * 60 * 1000);
+
+  await Promise.all([
+    Credit.updateMany(
+      { isDeleted: false, balance: { $gt: 0 }, dueDate: { $lt: todayStart }, status: { $nin: ["overdue", "paid"] } },
+      { $set: { status: "overdue" } }
+    ),
+    Credit.updateMany(
+      { isDeleted: false, balance: { $gt: 0 }, dueDate: { $gte: todayStart, $lte: sevenDaysFromNow }, status: { $nin: ["due_soon", "paid"] } },
+      { $set: { status: "due_soon" } }
+    ),
+    Credit.updateMany(
+      { isDeleted: false, balance: { $gt: 0 }, dueDate: { $gt: sevenDaysFromNow }, status: "due_soon" },
+      { $set: { status: "active" } }
+    ),
+  ]);
+}
+
 export const creditsService = {
+  refreshStatuses,
+
   async create(userId: string, data: Partial<ICredit>) {
     const credit = new Credit({
       userId,
@@ -21,6 +45,7 @@ export const creditsService = {
   },
 
   async list(userId: string, query: { status?: string; page?: number; limit?: number }) {
+    await refreshStatuses();
     const page = query.page ?? 1;
     const limit = query.limit ?? 50;
     const filter: Record<string, unknown> = { userId, isDeleted: false };
@@ -69,6 +94,7 @@ export const creditsService = {
   },
 
   async getStats(userId: string) {
+    await refreshStatuses();
     const now = new Date();
     const weekStart = new Date(now);
     weekStart.setDate(now.getDate() - now.getDay());

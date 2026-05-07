@@ -63,13 +63,16 @@ creditSchema.index({ userId: 1, isDeleted: 1, status: 1 });
 creditSchema.pre("save", function (next) {
   this.balance = this.amount - this.amountPaid;
   const now = new Date();
-  const sevenDays = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  // Compare at day boundary so a due date of "today" is due_soon, not overdue
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
+  const sevenDaysFromNow = new Date(todayStart.getTime() + 7 * 24 * 60 * 60 * 1000);
 
   if (this.balance <= 0) {
     this.status = "paid";
-  } else if (this.dueDate < now) {
+  } else if (this.dueDate < todayStart) {
     this.status = "overdue";
-  } else if (this.dueDate <= sevenDays) {
+  } else if (this.dueDate <= sevenDaysFromNow) {
     this.status = "due_soon";
   } else {
     this.status = "active";

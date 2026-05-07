@@ -1,5 +1,6 @@
 import cron from "node-cron";
 import { Credit } from "../modules/credits/credit.model";
+import { creditsService } from "../modules/credits/credits.service";
 import { User } from "../modules/users/user.model";
 import { notificationService } from "../modules/notifications/notification.service";
 import { logger } from "../config/logger";
@@ -9,6 +10,9 @@ export function startCreditOverdueJob() {
   cron.schedule("0 8 * * *", async () => {
     logger.info("Running credit overdue reminder job");
     try {
+      // Refresh stale statuses before querying
+      await creditsService.refreshStatuses();
+
       // Group overdue + due_soon credits by user
       const overdueSummary = await Credit.aggregate<{ _id: string; count: number }>([
         { $match: { status: { $in: ["overdue", "due_soon"] }, isDeleted: false } },
