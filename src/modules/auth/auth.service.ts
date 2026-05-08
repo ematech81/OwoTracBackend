@@ -21,7 +21,9 @@ export const authService = {
 
     const existingUser = await User.exists({ phone });
 
-    if (env.NODE_ENV === "development") {
+    // In dev or when FORCE_CONSOLE_OTP is on (e.g. unverified Twilio number during testing),
+    // skip real SMS and return the OTP so the app can auto-fill the field.
+    if (env.NODE_ENV === "development" || env.FORCE_CONSOLE_OTP) {
       return { isNewUser: !existingUser, devOtp: otp };
     }
 
@@ -225,11 +227,11 @@ export const authService = {
     const otp = generateOtp();
     await storeOtp(`resetpin:${phone}`, otp);
 
-    if (env.NODE_ENV !== "development") {
+    if (env.NODE_ENV !== "development" && !env.FORCE_CONSOLE_OTP) {
       await sendOtpSms(phone, `Your OwoTrack PIN reset OTP: ${otp}. Valid for ${env.OTP_EXPIRES_MINUTES} minutes.`);
     }
 
-    return env.NODE_ENV === "development" ? { devOtp: otp } : {};
+    return (env.NODE_ENV === "development" || env.FORCE_CONSOLE_OTP) ? { devOtp: otp } : {};
   },
 
   async resetPin(phone: string, otp: string, newPin: string) {

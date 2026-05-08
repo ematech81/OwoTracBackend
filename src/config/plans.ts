@@ -16,7 +16,6 @@ export interface PlanConfig {
   id: PlanId;
   name: string;
   priceNaira: number;
-  paystackPlanCode: string;
   limits: PlanLimits;
   badge?: string;
 }
@@ -26,7 +25,6 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     id: "free",
     name: "Starter",
     priceNaira: 0,
-    paystackPlanCode: "",
     limits: {
       salesPerMonth: 50,
       expensesPerMonth: 30,
@@ -43,7 +41,6 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     id: "growth",
     name: "Growth",
     priceNaira: 3000,
-    paystackPlanCode: process.env.PAYSTACK_PLAN_GROWTH ?? "",
     badge: "Popular",
     limits: {
       salesPerMonth: 300,
@@ -61,7 +58,6 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     id: "pro",
     name: "Pro",
     priceNaira: 5000,
-    paystackPlanCode: process.env.PAYSTACK_PLAN_PRO ?? "",
     limits: {
       salesPerMonth: -1,
       expensesPerMonth: -1,
@@ -78,7 +74,6 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     id: "business",
     name: "Business",
     priceNaira: 10000,
-    paystackPlanCode: process.env.PAYSTACK_PLAN_BUSINESS ?? "",
     limits: {
       salesPerMonth: -1,
       expensesPerMonth: -1,

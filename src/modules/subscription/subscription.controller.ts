@@ -26,8 +26,8 @@ export const subscriptionController = {
 
   async verify(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const { reference } = req.params;
-      const result = await subscriptionService.verifyTransaction(reference);
+      const { txRef } = req.params;
+      const result = await subscriptionService.verifyTransaction(txRef);
       res.json({ success: true, message: "Payment verified", data: result, error: null, meta: null });
     } catch (err) {
       next(err);
@@ -45,15 +45,14 @@ export const subscriptionController = {
 
   async webhook(req: Request, res: Response, next: NextFunction) {
     try {
-      const signature = req.headers["x-paystack-signature"] as string;
-      const rawBody = req.body as Buffer;
+      const signature = req.headers["verif-hash"] as string;
 
-      if (!subscriptionService.verifyWebhookSignature(rawBody, signature)) {
+      if (!subscriptionService.verifyWebhookSignature(signature)) {
         throw new AppError(401, "Invalid webhook signature", "INVALID_SIGNATURE");
       }
 
-      const payload = JSON.parse(rawBody.toString());
-      await subscriptionService.handleWebhookEvent(payload.event, payload.data);
+      // express.json() has already parsed the body at this point
+      await subscriptionService.handleWebhookEvent(req.body.event, req.body.data);
 
       res.sendStatus(200);
     } catch (err) {

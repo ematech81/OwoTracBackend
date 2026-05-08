@@ -25,7 +25,6 @@ import reportsRoutes from "./modules/reports/reports.routes";
 import advisorRoutes from "./modules/ai/advisor.routes";
 import stockRoutes from "./modules/stock/stock.routes";
 import subscriptionRoutes from "./modules/subscription/subscription.routes";
-import { subscriptionController } from "./modules/subscription/subscription.controller";
 import adminRoutes from "./modules/admin/admin.routes";
 import notificationRoutes from "./modules/notifications/notifications.routes";
 import { Broadcast } from "./models/broadcast.model";
@@ -34,13 +33,6 @@ const app = express();
 
 app.use(helmet());
 app.use(cors({ origin: "*", credentials: true }));
-
-// Paystack webhook must receive raw body for signature verification — register BEFORE express.json()
-app.post(
-  "/api/v1/subscription/webhook",
-  express.raw({ type: "application/json" }),
-  subscriptionController.webhook
-);
 
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));

@@ -4,8 +4,8 @@ import { notificationService } from "../modules/notifications/notification.servi
 import { logger } from "../config/logger";
 
 // Runs daily at 01:00 WAT — reverts expired referral-reward Growth plans to free.
-// Only touches users whose Growth plan came from the referral reward (no Paystack sub code).
-// Paid Growth subscribers are never affected.
+// Only touches users whose referral reward has expired AND whose subscription has also expired
+// (expiresAt < now), so users who later paid and have an active paid plan are never reverted.
 export function startReferralRewardExpiryJob() {
   cron.schedule("0 0 * * *", async () => {
     logger.info("Running referral reward expiry job");
@@ -17,8 +17,8 @@ export function startReferralRewardExpiryJob() {
         referralRewardExpiresAt: { $lt: now },
         "subscription.plan": "growth",
         "subscription.status": "active",
-        // Only revert if there is no Paystack subscription — meaning they never paid
-        "subscription.paystackSubscriptionCode": { $in: [null, undefined, ""] },
+        // Exclude users who paid (their expiresAt is still in the future)
+        "subscription.expiresAt": { $lt: now },
       }).select("_id name notifications");
 
       for (const user of expired) {

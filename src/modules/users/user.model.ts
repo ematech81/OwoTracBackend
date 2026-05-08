@@ -30,9 +30,6 @@ export interface IUser extends Document {
     status: "active" | "inactive" | "cancelled" | "expired";
     startDate?: Date;
     expiresAt?: Date;
-    paystackCustomerCode?: string;
-    paystackSubscriptionCode?: string;
-    paystackEmailToken?: string;
   };
   healthScore: number;
   loanEligible: boolean;
@@ -92,9 +89,6 @@ const userSchema = new Schema<IUser>(
       status: { type: String, enum: ["active", "inactive", "cancelled", "expired"], default: "inactive" },
       startDate: Date,
       expiresAt: Date,
-      paystackCustomerCode: String,
-      paystackSubscriptionCode: String,
-      paystackEmailToken: String,
     },
     healthScore: { type: Number, default: 0 },
     loanEligible: { type: Boolean, default: false },
