@@ -52,10 +52,20 @@ export const env = {
   FLW_SECRET_KEY: requiredInProd("FLW_SECRET_KEY"),
   FLW_WEBHOOK_HASH: requiredInProd("FLW_WEBHOOK_HASH"),
 
+  // ── Twilio (DEPRECATED — replaced by SendChamp 2026-05-16) ─────────────────
+  // Keep until 1-week rollback window closes. Do not remove yet.
   TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID || "",
   TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN || "",
   TWILIO_PHONE_NUMBER: process.env.TWILIO_PHONE_NUMBER || "",
-  FORCE_CONSOLE_OTP: process.env.FORCE_CONSOLE_OTP === "true",
+  FORCE_CONSOLE_OTP: process.env.FORCE_CONSOLE_OTP === "true", // DEPRECATED — use SENDCHAMP_MODE
+
+  // ── SendChamp OTP ─────────────────────────────────────────────────────────
+  SENDCHAMP_BASE_URL: process.env.SENDCHAMP_BASE_URL || "https://api.sendchamp.com/api/v1",
+  SENDCHAMP_PUBLIC_KEY: process.env.SENDCHAMP_PUBLIC_KEY || "",
+  SENDCHAMP_SENDER_NAME: process.env.SENDCHAMP_SENDER_NAME || "Sendchamp",
+  SENDCHAMP_MODE: process.env.SENDCHAMP_MODE === "production" ? "production" : "test",
+  SENDCHAMP_OTP_EXPIRY_MINUTES: parseInt(process.env.SENDCHAMP_OTP_EXPIRY_MINUTES || "5", 10),
+  SENDCHAMP_OTP_LENGTH: parseInt(process.env.SENDCHAMP_OTP_LENGTH || "6", 10),
 
   SENDGRID_API_KEY: process.env.SENDGRID_API_KEY || "",
   SENDGRID_FROM_EMAIL: process.env.SENDGRID_FROM_EMAIL || "noreply@owotrack.com",

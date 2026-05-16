@@ -2,39 +2,40 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { User } from "../users/user.model";
 import { AppError } from "../../middleware/errorHandler";
-import { generateOtp, storeOtp, verifyOtp } from "../../utils/otp";
-import { sendOtpSms } from "../../utils/sms";
+import { generateOtp, storeOtp, verifyOtp as verifyOtpLocal } from "../../utils/otp";
+import { sendChampSendOtp, sendChampVerifyOtp } from "../../utils/sendchamp";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../../utils/jwt";
 import { generateReferralCode } from "../../utils/referral";
 import { notificationService } from "../notifications/notification.service";
 import { redis } from "../../config/redis";
 import { adminNotify } from "../../utils/adminNotify";
 import { env } from "../../config/env";
+import { logger } from "../../config/logger";
 
 const TEMP_TOKEN_PREFIX = "temptoken:";
 const TEMP_TOKEN_EXPIRES = 10 * 60; // 10 minutes
 
 export const authService = {
   async sendOtp(phone: string) {
-    const otp = generateOtp();
-    await storeOtp(phone, otp);
-
     const existingUser = await User.exists({ phone });
 
-    // In dev or when FORCE_CONSOLE_OTP is on (e.g. unverified Twilio number during testing),
-    // skip real SMS and return the OTP so the app can auto-fill the field.
-    if (env.NODE_ENV === "development" || env.FORCE_CONSOLE_OTP) {
+    if (env.SENDCHAMP_MODE !== "production") {
+      // ── Test mode: generate locally, log to console, return devOtp for app auto-fill ──
+      const otp = generateOtp();
+      await storeOtp(phone, otp);
+      logger.info(`[SENDCHAMP TEST MODE] OTP for ${phone}: ${otp} (expires in ${env.SENDCHAMP_OTP_EXPIRY_MINUTES} min)`);
       return { isNewUser: !existingUser, devOtp: otp };
     }
 
-    const sent = await sendOtpSms(phone, otp);
-    if (!sent) throw new AppError(500, "Failed to send OTP. Please try again.", "SMS_FAILED");
-
+    // ── Production mode: call SendChamp, store reference in Redis ──
+    await sendChampSendOtp(phone, phone);
     return { isNewUser: !existingUser };
   },
 
   async verifyOtp(phone: string, otp: string) {
-    const valid = await verifyOtp(phone, otp);
+    const valid = env.SENDCHAMP_MODE !== "production"
+      ? await verifyOtpLocal(phone, otp)          // test: compare against Redis OTP value
+      : await sendChampVerifyOtp(phone, otp);      // production: call SendChamp /verification/confirm
     if (!valid) throw new AppError(400, "Invalid or expired OTP", "OTP_INVALID");
 
     const isNewUser = !(await User.exists({ phone }));
@@ -224,18 +225,23 @@ export const authService = {
     const user = await User.exists({ phone });
     if (!user) throw new AppError(404, "Phone number not registered", "USER_NOT_FOUND");
 
-    const otp = generateOtp();
-    await storeOtp(`resetpin:${phone}`, otp);
-
-    if (env.NODE_ENV !== "development" && !env.FORCE_CONSOLE_OTP) {
-      await sendOtpSms(phone, `Your OwoTrack PIN reset OTP: ${otp}. Valid for ${env.OTP_EXPIRES_MINUTES} minutes.`);
+    if (env.SENDCHAMP_MODE !== "production") {
+      // ── Test mode ──
+      const otp = generateOtp();
+      await storeOtp(`resetpin:${phone}`, otp);
+      logger.info(`[SENDCHAMP TEST MODE] PIN reset OTP for ${phone}: ${otp} (expires in ${env.SENDCHAMP_OTP_EXPIRY_MINUTES} min)`);
+      return { devOtp: otp };
     }
 
-    return (env.NODE_ENV === "development" || env.FORCE_CONSOLE_OTP) ? { devOtp: otp } : {};
+    // ── Production mode ──
+    await sendChampSendOtp(phone, `resetpin:${phone}`);
+    return {};
   },
 
   async resetPin(phone: string, otp: string, newPin: string) {
-    const valid = await verifyOtp(`resetpin:${phone}`, otp);
+    const valid = env.SENDCHAMP_MODE !== "production"
+      ? await verifyOtpLocal(`resetpin:${phone}`, otp)       // test: local Redis compare
+      : await sendChampVerifyOtp(`resetpin:${phone}`, otp);   // production: SendChamp API
     if (!valid) throw new AppError(400, "Invalid or expired OTP", "OTP_INVALID");
 
     const hashedPin = await bcrypt.hash(newPin, env.BCRYPT_SALT_ROUNDS);
