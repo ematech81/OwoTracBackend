@@ -31,6 +31,10 @@ import { Broadcast } from "./models/broadcast.model";
 
 const app = express();
 
+// Trust Railway's reverse proxy so express-rate-limit reads the real client IP
+// from X-Forwarded-For instead of the proxy's internal IP
+app.set("trust proxy", 1);
+
 app.use(helmet());
 app.use(cors({ origin: "*", credentials: true }));
 
