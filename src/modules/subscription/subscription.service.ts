@@ -18,7 +18,7 @@ interface KorapayInitPayload {
   notification_url: string;
   redirect_url: string;
   customer: { email: string; name: string };
-  channels: string[];
+  channels: Array<"card" | "bank_transfer" | "pay_with_bank" | "mobile_money" | "voucher">;
   metadata: { userId: string; planId: string };
 }
 
@@ -50,7 +50,12 @@ function handleKoraError(err: unknown, fallback: string): never {
   if (err instanceof AxiosError) {
     const body = err.response?.data as Record<string, unknown> | undefined;
     const msg = (body?.message as string) || (body?.error as string) || fallback;
-    logger.error("Korapay API error:", { status: err.response?.status, body });
+    // Log the full response so Railway logs show the exact Korapay rejection reason
+    logger.error("Korapay API error:", {
+      status: err.response?.status,
+      url: err.config?.url,
+      body: JSON.stringify(body),
+    });
     throw new AppError(
       err.response?.status === 404 ? 422 : 502,
       `Payment service: ${msg}`,
@@ -103,7 +108,7 @@ export async function initializeSubscription(
         notification_url: NOTIFICATION_URL,
         redirect_url: REDIRECT_URL,
         customer: { email, name: user.name },
-        channels: ["card", "bank_transfer", "ussd", "mobile_money"],
+        channels: ["card", "bank_transfer", "pay_with_bank", "mobile_money"],
         metadata: { userId: user._id.toString(), planId },
       } satisfies KorapayInitPayload,
       { headers: koraHeaders() }

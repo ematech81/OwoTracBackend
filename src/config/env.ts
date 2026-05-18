@@ -59,8 +59,8 @@ export const env = {
   KORAPAY_MODE: process.env.KORAPAY_MODE === "production" ? "production" : "test",
   KORAPAY_BASE_URL: process.env.KORAPAY_BASE_URL || "https://api.korapay.com/merchant/api/v1",
   KORAPAY_PUBLIC_KEY: process.env.KORAPAY_PUBLIC_KEY || "",
-  KORAPAY_SECRET_KEY: requiredInProd("KORAPAY_SECRET_KEY"),
-  KORAPAY_WEBHOOK_SECRET: requiredInProd("KORAPAY_WEBHOOK_SECRET"),
+  KORAPAY_SECRET_KEY: process.env.KORAPAY_SECRET_KEY || "",
+  KORAPAY_WEBHOOK_SECRET: process.env.KORAPAY_WEBHOOK_SECRET || "",
 
   // Plan prices in Naira — set via env so prices change without redeploying code
   KORAPAY_PLAN_GROWTH_MONTHLY:   parseInt(process.env.KORAPAY_PLAN_GROWTH_MONTHLY   || "3000",  10),
