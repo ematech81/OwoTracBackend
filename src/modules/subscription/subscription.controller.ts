@@ -45,13 +45,15 @@ export const subscriptionController = {
 
   async webhook(req: Request, res: Response, next: NextFunction) {
     try {
-      const signature = req.headers["verif-hash"] as string;
+      // Korapay signs the raw request body with HMAC-SHA256 and sends the hex
+      // digest in the x-korapay-signature header. We captured rawBody in app.ts.
+      const signature = req.headers["x-korapay-signature"] as string;
+      const rawBody = (req as any).rawBody as string ?? JSON.stringify(req.body);
 
-      if (!subscriptionService.verifyWebhookSignature(signature)) {
+      if (!subscriptionService.verifyWebhookSignature(signature, rawBody)) {
         throw new AppError(401, "Invalid webhook signature", "INVALID_SIGNATURE");
       }
 
-      // express.json() has already parsed the body at this point
       await subscriptionService.handleWebhookEvent(req.body.event, req.body.data);
 
       res.sendStatus(200);

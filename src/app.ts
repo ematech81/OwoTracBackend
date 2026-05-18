@@ -38,7 +38,11 @@ app.set("trust proxy", 1);
 app.use(helmet());
 app.use(cors({ origin: "*", credentials: true }));
 
-app.use(express.json({ limit: "10mb" }));
+// Capture raw body string before JSON parsing — required for Korapay HMAC-SHA256 webhook verification
+app.use(express.json({
+  limit: "10mb",
+  verify: (req: any, _res, buf) => { req.rawBody = buf.toString("utf8"); },
+}));
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan("dev", { stream: { write: (msg) => logger.info(msg.trim()) } }));
 app.use(globalLimiter);

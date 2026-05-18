@@ -4,7 +4,7 @@ import { authenticate } from "../../middleware/auth.middleware";
 
 const router = Router();
 
-// Webhook is unauthenticated — Flutterwave calls it directly with a hash header
+// Webhook is unauthenticated — Korapay calls it directly; signature verified inside the handler
 router.post("/webhook", subscriptionController.webhook);
 
 // All other routes require a valid user JWT

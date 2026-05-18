@@ -30,6 +30,9 @@ export interface IUser extends Document {
     status: "active" | "inactive" | "cancelled" | "expired";
     startDate?: Date;
     expiresAt?: Date;
+    paymentProvider?: "flutterwave" | "korapay";
+    autoRenew?: boolean;
+    cardToken?: string;
   };
   healthScore: number;
   loanEligible: boolean;
@@ -89,6 +92,9 @@ const userSchema = new Schema<IUser>(
       status: { type: String, enum: ["active", "inactive", "cancelled", "expired"], default: "inactive" },
       startDate: Date,
       expiresAt: Date,
+      paymentProvider: { type: String, enum: ["flutterwave", "korapay"] },
+      autoRenew: { type: Boolean },
+      cardToken: { type: String },
     },
     healthScore: { type: Number, default: 0 },
     loanEligible: { type: Boolean, default: false },

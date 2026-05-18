@@ -49,8 +49,23 @@ export const env = {
   CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY || "",
   CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET || "",
 
-  FLW_SECRET_KEY: requiredInProd("FLW_SECRET_KEY"),
-  FLW_WEBHOOK_HASH: requiredInProd("FLW_WEBHOOK_HASH"),
+  // DEPRECATED: Replaced by Korapay (2026-05-16). Keep for rollback until 2026-06-16.
+  // FLW_SECRET_KEY: requiredInProd("FLW_SECRET_KEY"),
+  // FLW_WEBHOOK_HASH: requiredInProd("FLW_WEBHOOK_HASH"),
+  FLW_SECRET_KEY: process.env.FLW_SECRET_KEY || "",
+  FLW_WEBHOOK_HASH: process.env.FLW_WEBHOOK_HASH || "",
+
+  // ── Korapay payments ──────────────────────────────────────────────────────
+  KORAPAY_MODE: process.env.KORAPAY_MODE === "production" ? "production" : "test",
+  KORAPAY_BASE_URL: process.env.KORAPAY_BASE_URL || "https://api.korapay.com/merchant/api/v1",
+  KORAPAY_PUBLIC_KEY: process.env.KORAPAY_PUBLIC_KEY || "",
+  KORAPAY_SECRET_KEY: requiredInProd("KORAPAY_SECRET_KEY"),
+  KORAPAY_WEBHOOK_SECRET: requiredInProd("KORAPAY_WEBHOOK_SECRET"),
+
+  // Plan prices in Naira — set via env so prices change without redeploying code
+  KORAPAY_PLAN_GROWTH_MONTHLY:   parseInt(process.env.KORAPAY_PLAN_GROWTH_MONTHLY   || "3000",  10),
+  KORAPAY_PLAN_PRO_MONTHLY:      parseInt(process.env.KORAPAY_PLAN_PRO_MONTHLY      || "5000",  10),
+  KORAPAY_PLAN_BUSINESS_MONTHLY: parseInt(process.env.KORAPAY_PLAN_BUSINESS_MONTHLY || "10000", 10),
 
   // ── Twilio (DEPRECATED — replaced by SendChamp 2026-05-16) ─────────────────
   // Keep until 1-week rollback window closes. Do not remove yet.
