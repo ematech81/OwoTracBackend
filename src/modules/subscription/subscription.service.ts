@@ -8,6 +8,7 @@ import { redis } from "../../config/redis";
 import { logger } from "../../config/logger";
 import { adminNotify } from "../../utils/adminNotify";
 import { userNotify } from "../../utils/userNotify";
+import { generatePaymentReference } from "../../utils/paymentReference";
 
 // ── Korapay API types ──────────────────────────────────────────────────────
 
@@ -74,7 +75,7 @@ function getPlanPrice(planId: PlanId): number {
   }
 }
 
-const makeReference = (userId: string) => `OWT-${userId}-${Date.now()}`;
+// Reference format: OWO-{uuid_v4} — prefix routes webhooks via the shared Korapay router
 
 // Must match the redirect_url intercepted by the mobile WebView
 const REDIRECT_URL = "https://owotracbackend-production.up.railway.app/payment/callback";
@@ -95,7 +96,7 @@ export async function initializeSubscription(
   if (!plan || plan.id === "free") throw new AppError(400, "Plan not available", "PLAN_UNAVAILABLE");
 
   const email = user.email || `${user.phone.replace(/\D/g, "")}@owotrack.app`;
-  const reference = makeReference(userId);
+  const reference = generatePaymentReference();
   const amount = getPlanPrice(planId);
 
   try {
