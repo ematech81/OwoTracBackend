@@ -4,6 +4,7 @@ import { User } from "../users/user.model";
 import { AppError } from "../../middleware/errorHandler";
 import { generateOtp, storeOtp, verifyOtp as verifyOtpLocal } from "../../utils/otp";
 import { sendChampSendOtp, sendChampVerifyOtp } from "../../utils/sendchamp";
+import { bulkSmsSendOtp } from "../../utils/bulkSmsService";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../../utils/jwt";
 import { generateReferralCode } from "../../utils/referral";
 import { notificationService } from "../notifications/notification.service";
@@ -27,15 +28,24 @@ export const authService = {
       return { isNewUser: !existingUser, devOtp: otp };
     }
 
-    // ── Production mode: call SendChamp, store reference in Redis ──
-    await sendChampSendOtp(phone, phone);
+    // ── Production mode: send via selected SMS provider ──
+    if (env.SMS_PROVIDER === "bulksms") {
+      // BulkSMS: generate OTP locally, store in Redis, deliver via BulkSMS API
+      const otp = generateOtp();
+      await storeOtp(phone, otp);
+      await bulkSmsSendOtp(phone, otp);
+    } else {
+      // SendChamp: SendChamp generates + sends OTP, we store the reference
+      await sendChampSendOtp(phone, phone);
+    }
     return { isNewUser: !existingUser };
   },
 
   async verifyOtp(phone: string, otp: string) {
-    const valid = env.SENDCHAMP_MODE !== "production"
-      ? await verifyOtpLocal(phone, otp)          // test: compare against Redis OTP value
-      : await sendChampVerifyOtp(phone, otp);      // production: call SendChamp /verification/confirm
+    // BulkSMS and test mode both verify locally from Redis; SendChamp uses its API
+    const valid = env.SENDCHAMP_MODE !== "production" || env.SMS_PROVIDER === "bulksms"
+      ? await verifyOtpLocal(phone, otp)
+      : await sendChampVerifyOtp(phone, otp);      // production SendChamp: call /verification/confirm
     if (!valid) throw new AppError(400, "Invalid or expired OTP", "OTP_INVALID");
 
     const isNewUser = !(await User.exists({ phone }));
@@ -234,14 +244,20 @@ export const authService = {
     }
 
     // ── Production mode ──
-    await sendChampSendOtp(phone, `resetpin:${phone}`);
+    if (env.SMS_PROVIDER === "bulksms") {
+      const otp = generateOtp();
+      await storeOtp(`resetpin:${phone}`, otp);
+      await bulkSmsSendOtp(phone, otp);
+    } else {
+      await sendChampSendOtp(phone, `resetpin:${phone}`);
+    }
     return {};
   },
 
   async resetPin(phone: string, otp: string, newPin: string) {
-    const valid = env.SENDCHAMP_MODE !== "production"
-      ? await verifyOtpLocal(`resetpin:${phone}`, otp)       // test: local Redis compare
-      : await sendChampVerifyOtp(`resetpin:${phone}`, otp);   // production: SendChamp API
+    const valid = env.SENDCHAMP_MODE !== "production" || env.SMS_PROVIDER === "bulksms"
+      ? await verifyOtpLocal(`resetpin:${phone}`, otp)
+      : await sendChampVerifyOtp(`resetpin:${phone}`, otp);   // production SendChamp: API verify
     if (!valid) throw new AppError(400, "Invalid or expired OTP", "OTP_INVALID");
 
     const hashedPin = await bcrypt.hash(newPin, env.BCRYPT_SALT_ROUNDS);

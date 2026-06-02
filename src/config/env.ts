@@ -74,6 +74,10 @@ export const env = {
   TWILIO_PHONE_NUMBER: process.env.TWILIO_PHONE_NUMBER || "",
   FORCE_CONSOLE_OTP: process.env.FORCE_CONSOLE_OTP === "true", // DEPRECATED — use SENDCHAMP_MODE
 
+  // ── SMS provider selector ─────────────────────────────────────────────────
+  // Options: "sendchamp" | "bulksms"  — default sendchamp (existing behaviour)
+  SMS_PROVIDER: (process.env.SMS_PROVIDER || "sendchamp") as "sendchamp" | "bulksms",
+
   // ── SendChamp OTP ─────────────────────────────────────────────────────────
   SENDCHAMP_BASE_URL: process.env.SENDCHAMP_BASE_URL || "https://api.sendchamp.com/api/v1",
   SENDCHAMP_PUBLIC_KEY: process.env.SENDCHAMP_PUBLIC_KEY || "",
@@ -81,6 +85,11 @@ export const env = {
   SENDCHAMP_MODE: process.env.SENDCHAMP_MODE === "production" ? "production" : "test",
   SENDCHAMP_OTP_EXPIRY_MINUTES: parseInt(process.env.SENDCHAMP_OTP_EXPIRY_MINUTES || "5", 10),
   SENDCHAMP_OTP_LENGTH: parseInt(process.env.SENDCHAMP_OTP_LENGTH || "6", 10),
+
+  // ── BulkSMS Nigeria OTP ───────────────────────────────────────────────────
+  BULKSMS_BASE_URL:   process.env.BULKSMS_BASE_URL   || "https://www.bulksmsnigeria.com/api/v2",
+  BULKSMS_API_TOKEN:  process.env.BULKSMS_API_TOKEN  || "",
+  BULKSMS_SENDER_ID:  process.env.BULKSMS_SENDER_ID  || "OwoTrack",
 
   SENDGRID_API_KEY: process.env.SENDGRID_API_KEY || "",
   SENDGRID_FROM_EMAIL: process.env.SENDGRID_FROM_EMAIL || "noreply@owotrack.com",
