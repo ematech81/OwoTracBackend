@@ -4,7 +4,7 @@ import { User } from "../users/user.model";
 import { AppError } from "../../middleware/errorHandler";
 import { generateOtp, storeOtp, verifyOtp as verifyOtpLocal } from "../../utils/otp";
 import { sendChampSendOtp, sendChampVerifyOtp } from "../../utils/sendchamp";
-import { bulkSmsSendOtp } from "../../utils/bulkSmsService";
+import { bulkSmsSendOtp, generateAlphanumericOtp } from "../../utils/bulkSmsService";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../../utils/jwt";
 import { generateReferralCode } from "../../utils/referral";
 import { notificationService } from "../notifications/notification.service";
@@ -30,8 +30,8 @@ export const authService = {
 
     // ── Production mode: send via selected SMS provider ──
     if (env.SMS_PROVIDER === "bulksms") {
-      // BulkSMS: generate OTP locally, store in Redis, deliver via BulkSMS API
-      const otp = generateOtp();
+      // BulkSMS: alphanumeric OTP generated locally, stored in Redis, delivered via BulkSMS
+      const otp = generateAlphanumericOtp();
       await storeOtp(phone, otp);
       await bulkSmsSendOtp(phone, otp);
     } else {
@@ -245,7 +245,7 @@ export const authService = {
 
     // ── Production mode ──
     if (env.SMS_PROVIDER === "bulksms") {
-      const otp = generateOtp();
+      const otp = generateAlphanumericOtp();
       await storeOtp(`resetpin:${phone}`, otp);
       await bulkSmsSendOtp(phone, otp);
     } else {

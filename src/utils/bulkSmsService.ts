@@ -16,6 +16,23 @@ function mapBsngError(code: string): string {
   return BSNG_ERRORS[code] ?? "Could not send OTP. Please try again.";
 }
 
+// ── Alphanumeric OTP generator (BulkSMS path only) ─────────────────────────
+// Excludes visually confusing chars: 0, O, I, 1, L
+// Guarantees at least one letter and one digit in every output.
+
+const ALPHANUM_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+
+export function generateAlphanumericOtp(): string {
+  let otp: string;
+  do {
+    otp = Array.from(
+      { length: 6 },
+      () => ALPHANUM_CHARS[Math.floor(Math.random() * ALPHANUM_CHARS.length)]
+    ).join("");
+  } while (!/[A-Z]/.test(otp) || !/[0-9]/.test(otp));
+  return otp;
+}
+
 // ── Phone formatter ─────────────────────────────────────────────────────────
 
 /**
@@ -63,7 +80,8 @@ export async function bulkSmsSendOtp(
   const body = {
     from: env.BULKSMS_SENDER_ID,
     to: formattedPhone,
-    body: `Your OwoTrack verification code is ${otpCode}. Valid for ${env.OTP_EXPIRES_MINUTES} minutes. Do not share this code.`,
+    body: `Hi, your OwoTrack access key is ${otpCode}. Valid for ${env.OTP_EXPIRES_MINUTES} mins. Keep it private.`,
+    gateway: "direct-refund",
   };
 
   try {

@@ -15,7 +15,8 @@ export const sendOtpSchema = z.object({
 
 export const verifyOtpSchema = z.object({
   phone: phoneSchema,
-  otp: z.string().length(6, "OTP must be 6 digits").regex(/^\d{6}$/),
+  // Accepts numeric (SendChamp) and alphanumeric (BulkSMS) 6-character codes
+  otp: z.string().length(6, "OTP must be 6 characters").regex(/^[A-Za-z0-9]{6}$/),
 });
 
 export const registerSchema = z.object({
@@ -64,6 +65,6 @@ export const forgotPinSchema = z.object({
 
 export const resetPinSchema = z.object({
   phone: phoneSchema,
-  otp: z.string().length(6).regex(/^\d{6}$/),
+  otp: z.string().length(6).regex(/^[A-Za-z0-9]{6}$/),
   newPin: pinSchema,
 });
