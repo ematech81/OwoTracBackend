@@ -4,7 +4,7 @@ import { User } from "../users/user.model";
 import { AppError } from "../../middleware/errorHandler";
 import { generateOtp, storeOtp, verifyOtp as verifyOtpLocal } from "../../utils/otp";
 import { sendChampSendOtp, sendChampVerifyOtp } from "../../utils/sendchamp";
-import { bulkSmsSendOtp, generateAlphanumericOtp } from "../../utils/bulkSmsService";
+import { bulkSmsSendOtp, generateAlphanumericOtp, formatNigerianNumber } from "../../utils/bulkSmsService";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../../utils/jwt";
 import { generateReferralCode } from "../../utils/referral";
 import { notificationService } from "../notifications/notification.service";
@@ -16,9 +16,28 @@ import { logger } from "../../config/logger";
 const TEMP_TOKEN_PREFIX = "temptoken:";
 const TEMP_TOKEN_EXPIRES = 10 * 60; // 10 minutes
 
+// ── Google Play review bypass ─────────────────────────────────────────────────
+// Activates ONLY when both TEST_REVIEW_PHONE and TEST_REVIEW_OTP are set in env.
+// Remove both env vars to disable completely — no code change needed.
+function isReviewAccount(phone: string): boolean {
+  const { TEST_REVIEW_PHONE, TEST_REVIEW_OTP } = env;
+  if (!TEST_REVIEW_PHONE || !TEST_REVIEW_OTP) return false;
+  try {
+    return formatNigerianNumber(phone) === formatNigerianNumber(TEST_REVIEW_PHONE);
+  } catch {
+    return false;
+  }
+}
+
 export const authService = {
   async sendOtp(phone: string) {
     const existingUser = await User.exists({ phone });
+
+    // ── Review bypass: skip SMS entirely, reviewer uses fixed OTP ──
+    if (isReviewAccount(phone)) {
+      logger.warn("[TEST BYPASS] Review account OTP send — SMS skipped");
+      return { isNewUser: !existingUser };
+    }
 
     if (env.SENDCHAMP_MODE !== "production") {
       // ── Test mode: generate locally, log to console, return devOtp for app auto-fill ──
@@ -42,11 +61,19 @@ export const authService = {
   },
 
   async verifyOtp(phone: string, otp: string) {
-    // BulkSMS and test mode both verify locally from Redis; SendChamp uses its API
-    const valid = env.SENDCHAMP_MODE !== "production" || env.SMS_PROVIDER === "bulksms"
-      ? await verifyOtpLocal(phone, otp)
-      : await sendChampVerifyOtp(phone, otp);      // production SendChamp: call /verification/confirm
-    if (!valid) throw new AppError(400, "Invalid or expired OTP", "OTP_INVALID");
+    // ── Review bypass: check fixed OTP, skip all real verification ──
+    if (isReviewAccount(phone)) {
+      if (otp !== env.TEST_REVIEW_OTP) {
+        throw new AppError(400, "Invalid or expired OTP", "OTP_INVALID");
+      }
+      logger.warn("[TEST BYPASS] Review account OTP verified — real check skipped");
+    } else {
+      // BulkSMS and test mode both verify locally from Redis; SendChamp uses its API
+      const valid = env.SENDCHAMP_MODE !== "production" || env.SMS_PROVIDER === "bulksms"
+        ? await verifyOtpLocal(phone, otp)
+        : await sendChampVerifyOtp(phone, otp);
+      if (!valid) throw new AppError(400, "Invalid or expired OTP", "OTP_INVALID");
+    }
 
     const isNewUser = !(await User.exists({ phone }));
 

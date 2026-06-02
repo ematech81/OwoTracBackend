@@ -103,4 +103,9 @@ export const env = {
   OTP_EXPIRES_MINUTES: parseInt(process.env.OTP_EXPIRES_MINUTES || "10", 10),
 
   SENTRY_DSN: process.env.SENTRY_DSN || "",
+
+  // ── Google Play review bypass ─────────────────────────────────────────────
+  // Bypass only activates when BOTH vars are set. Remove both to disable.
+  TEST_REVIEW_PHONE: process.env.TEST_REVIEW_PHONE || "",
+  TEST_REVIEW_OTP:   process.env.TEST_REVIEW_OTP   || "",
 } as const;
