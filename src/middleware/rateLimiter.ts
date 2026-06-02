@@ -18,17 +18,34 @@ export const globalLimiter = env.NODE_ENV === "development" ? noopLimiter : rate
   },
 });
 
+// Limits how often an OTP can be SENT — 5 attempts per 30 minutes per phone
 export const otpLimiter = env.NODE_ENV === "development" ? noopLimiter : rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: 3,
+  windowMs: 30 * 60 * 1000,
+  max: 5,
   keyGenerator: (req) => req.body?.phone || req.ip || "unknown",
   standardHeaders: true,
   legacyHeaders: false,
   message: {
     success: false,
-    message: "Too many OTP requests. Try again in 1 hour.",
+    message: "You don request OTP too many times. Abeg wait 30 minutes and try again.",
     data: null,
     error: { code: "OTP_RATE_LIMIT", details: null },
+    meta: null,
+  },
+} as Parameters<typeof rateLimit>[0]);
+
+// Limits how often an OTP can be VERIFIED — 5 attempts per 30 minutes per phone
+export const otpVerifyLimiter = env.NODE_ENV === "development" ? noopLimiter : rateLimit({
+  windowMs: 30 * 60 * 1000,
+  max: 5,
+  keyGenerator: (req) => req.body?.phone || req.ip || "unknown",
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: "You don try too many times. Abeg wait 30 minutes and try again.",
+    data: null,
+    error: { code: "OTP_VERIFY_RATE_LIMIT", details: null },
     meta: null,
   },
 } as Parameters<typeof rateLimit>[0]);
