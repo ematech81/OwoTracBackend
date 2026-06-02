@@ -64,7 +64,6 @@ export async function bulkSmsSendOtp(
     from: env.BULKSMS_SENDER_ID,
     to: formattedPhone,
     body: `Your OwoTrack verification code is ${otpCode}. Valid for ${env.OTP_EXPIRES_MINUTES} minutes. Do not share this code.`,
-    gateway: "otp",
   };
 
   try {
