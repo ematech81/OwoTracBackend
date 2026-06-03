@@ -16,7 +16,7 @@ export interface ICredit extends Document {
   amountPaid: number;   // total paid back so far
   balance: number;      // amount - amountPaid
   dueDate: Date;
-  status: "active" | "due_soon" | "overdue" | "paid";
+  status: "pending" | "active" | "due_soon" | "overdue" | "paid"; // "active" kept for backward compat
   payments: IPayment[];
   localId?: string;
   syncStatus: "synced" | "pending" | "failed";
@@ -43,8 +43,8 @@ const creditSchema = new Schema<ICredit>(
     dueDate: { type: Date, required: true, index: true },
     status: {
       type: String,
-      enum: ["active", "due_soon", "overdue", "paid"],
-      default: "active",
+      enum: ["pending", "active", "due_soon", "overdue", "paid"], // "active" retained for backward compat
+      default: "pending",
       index: true,
     },
     payments: [paymentSchema],
@@ -59,23 +59,23 @@ creditSchema.index({ userId: 1, status: 1 });
 creditSchema.index({ userId: 1, dueDate: 1 });
 creditSchema.index({ userId: 1, isDeleted: 1, status: 1 });
 
-// Auto-compute status and balance before save
+// Auto-compute balance and status before save.
+// due_soon window = 3 days (today through 3 days ahead).
+// "pending" replaces the old "active" label for new records.
 creditSchema.pre("save", function (next) {
   this.balance = this.amount - this.amountPaid;
-  const now = new Date();
-  // Compare at day boundary so a due date of "today" is due_soon, not overdue
-  const todayStart = new Date(now);
+  const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
-  const sevenDaysFromNow = new Date(todayStart.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const threeDaysFromNow = new Date(todayStart.getTime() + 3 * 24 * 60 * 60 * 1000);
 
   if (this.balance <= 0) {
     this.status = "paid";
   } else if (this.dueDate < todayStart) {
     this.status = "overdue";
-  } else if (this.dueDate <= sevenDaysFromNow) {
+  } else if (this.dueDate <= threeDaysFromNow) {
     this.status = "due_soon";
   } else {
-    this.status = "active";
+    this.status = "pending";
   }
   next();
 });
