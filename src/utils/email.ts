@@ -1,8 +1,8 @@
-import sgMail from "@sendgrid/mail";
+import axios from "axios";
 import { env } from "../config/env";
 import { logger } from "../config/logger";
 
-sgMail.setApiKey(env.SENDGRID_API_KEY);
+const BREVO_SMTP_URL = "https://api.brevo.com/v3/smtp/email";
 
 export const sendEmail = async (
   to: string,
@@ -10,22 +10,36 @@ export const sendEmail = async (
   text: string,
   html?: string
 ): Promise<boolean> => {
-  if (env.FORCE_CONSOLE_OTP || env.NODE_ENV === "development") {
+  if (env.NODE_ENV === "development") {
     logger.info(`[EMAIL → ${to}] Subject: ${subject}\n${text}`);
     return true;
   }
 
+  if (!env.BREVO_API_KEY) {
+    logger.error("[EMAIL] BREVO_API_KEY is not set — email not sent");
+    return false;
+  }
+
   try {
-    await sgMail.send({
-      to,
-      from: { email: env.SENDGRID_FROM_EMAIL, name: env.SENDGRID_FROM_NAME },
-      subject,
-      text,
-      html: html || text,
-    });
+    await axios.post(
+      BREVO_SMTP_URL,
+      {
+        sender: { name: env.BREVO_FROM_NAME, email: env.BREVO_FROM_EMAIL },
+        to: [{ email: to }],
+        subject,
+        textContent: text,
+        htmlContent: html || text,
+      },
+      {
+        headers: {
+          "api-key": env.BREVO_API_KEY,
+          "Content-Type": "application/json",
+        },
+      }
+    );
     return true;
   } catch (error) {
-    logger.error("SendGrid email failed:", error);
+    logger.error("[EMAIL] Brevo send failed:", error);
     return false;
   }
 };

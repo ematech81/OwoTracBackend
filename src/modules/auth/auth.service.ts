@@ -10,11 +10,39 @@ import { generateReferralCode } from "../../utils/referral";
 import { notificationService } from "../notifications/notification.service";
 import { redis } from "../../config/redis";
 import { adminNotify } from "../../utils/adminNotify";
+import { sendEmail } from "../../utils/email";
 import { env } from "../../config/env";
 import { logger } from "../../config/logger";
 
 const TEMP_TOKEN_PREFIX = "temptoken:";
 const TEMP_TOKEN_EXPIRES = 10 * 60; // 10 minutes
+
+// ── OTP delivery helpers ──────────────────────────────────────────────────────
+
+function isOutsideBulkSmsHours(): boolean {
+  // BulkSMS Nigeria only delivers reliably 8am–6pm WAT (UTC+1)
+  const watHour = (new Date().getUTCHours() + 1) % 24;
+  return watHour < 8 || watHour >= 18;
+}
+
+function maskEmail(email: string): string {
+  const [local, domain] = email.split("@");
+  return `${local[0]}***@${domain}`;
+}
+
+async function sendOtpEmail(email: string, otp: string): Promise<void> {
+  const expiry = env.OTP_EXPIRES_MINUTES;
+  const html = `<div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px">
+    <h2 style="color:#1A6B3C;margin-bottom:8px">OwoTrack Access Key</h2>
+    <p style="color:#555">Your one-time access key is:</p>
+    <div style="font-size:36px;font-weight:700;letter-spacing:10px;color:#1A6B3C;text-align:center;margin:24px 0;background:#f0fdf4;padding:16px;border-radius:12px">${otp}</div>
+    <p style="color:#555">Valid for <strong>${expiry} minutes</strong>. Do not share this with anyone.</p>
+    <p style="color:#999;font-size:12px;margin-top:24px">If you didn't request this, please ignore this email.</p>
+  </div>`;
+  const text = `Your OwoTrack access key is: ${otp}\n\nValid for ${expiry} minutes. Keep it private.`;
+  const sent = await sendEmail(email, "Your OwoTrack Access Key", text, html);
+  if (!sent) throw new AppError(500, "Failed to send OTP email", "OTP_SEND_FAILED");
+}
 
 // ── Google Play review bypass ─────────────────────────────────────────────────
 // Activates ONLY when both TEST_REVIEW_PHONE and TEST_REVIEW_OTP are set in env.
@@ -30,13 +58,14 @@ function isReviewAccount(phone: string): boolean {
 }
 
 export const authService = {
-  async sendOtp(phone: string) {
-    const existingUser = await User.exists({ phone });
+  async sendOtp(phone: string, email?: string, forceEmail = false) {
+    const existingUser = await User.findOne({ phone }).select("email");
+    const recipientEmail = email || existingUser?.email;
 
     // ── Review bypass: skip SMS entirely, reviewer uses fixed OTP ──
     if (isReviewAccount(phone)) {
       logger.warn("[TEST BYPASS] Review account OTP send — SMS skipped");
-      return { isNewUser: !existingUser };
+      return { isNewUser: !existingUser, emailUsed: false };
     }
 
     if (env.SENDCHAMP_MODE !== "production") {
@@ -44,20 +73,42 @@ export const authService = {
       const otp = generateOtp();
       await storeOtp(phone, otp);
       logger.info(`[SENDCHAMP TEST MODE] OTP for ${phone}: ${otp} (expires in ${env.SENDCHAMP_OTP_EXPIRY_MINUTES} min)`);
-      return { isNewUser: !existingUser, devOtp: otp };
+      return { isNewUser: !existingUser, devOtp: otp, emailUsed: false };
     }
 
     // ── Production mode: send via selected SMS provider ──
     if (env.SMS_PROVIDER === "bulksms") {
-      // BulkSMS: alphanumeric OTP generated locally, stored in Redis, delivered via BulkSMS
       const otp = generateAlphanumericOtp();
       await storeOtp(phone, otp);
-      await bulkSmsSendOtp(phone, otp);
+      let emailUsed = false;
+
+      if (forceEmail && recipientEmail) {
+        await sendOtpEmail(recipientEmail, otp);
+        emailUsed = true;
+      } else if (isOutsideBulkSmsHours() && recipientEmail) {
+        logger.info(`[OTP] Outside BulkSMS hours — sending via email to ${maskEmail(recipientEmail)}`);
+        await sendOtpEmail(recipientEmail, otp);
+        emailUsed = true;
+      } else {
+        try {
+          await bulkSmsSendOtp(phone, otp);
+        } catch (smsErr) {
+          if (recipientEmail) {
+            logger.warn(`[OTP] BulkSMS failed for ${phone}, falling back to email`);
+            await sendOtpEmail(recipientEmail, otp);
+            emailUsed = true;
+          } else {
+            throw smsErr;
+          }
+        }
+      }
+
+      return { isNewUser: !existingUser, emailUsed };
     } else {
       // SendChamp: SendChamp generates + sends OTP, we store the reference
       await sendChampSendOtp(phone, phone);
+      return { isNewUser: !existingUser, emailUsed: false };
     }
-    return { isNewUser: !existingUser };
   },
 
   async verifyOtp(phone: string, otp: string) {
@@ -90,6 +141,7 @@ export const authService = {
     tempToken: string;
     name: string;
     phone: string;
+    email?: string;
     businessName?: string;
     businessType?: string;
     location?: { state?: string; city?: string; market?: string };
@@ -133,6 +185,7 @@ export const authService = {
     const user = await User.create({
       name: data.name,
       phone: data.phone,
+      email: data.email || undefined,
       businessName: data.businessName,
       businessType: data.businessType,
       location: { country: "Nigeria", ...data.location },
@@ -259,26 +312,48 @@ export const authService = {
   },
 
   async forgotPin(phone: string) {
-    const user = await User.exists({ phone });
+    const user = await User.findOne({ phone }).select("email");
     if (!user) throw new AppError(404, "Phone number not registered", "USER_NOT_FOUND");
+
+    const userEmail = user.email;
 
     if (env.SENDCHAMP_MODE !== "production") {
       // ── Test mode ──
       const otp = generateOtp();
       await storeOtp(`resetpin:${phone}`, otp);
       logger.info(`[SENDCHAMP TEST MODE] PIN reset OTP for ${phone}: ${otp} (expires in ${env.SENDCHAMP_OTP_EXPIRY_MINUTES} min)`);
-      return { devOtp: otp };
+      return { devOtp: otp, emailUsed: false };
     }
 
     // ── Production mode ──
     if (env.SMS_PROVIDER === "bulksms") {
       const otp = generateAlphanumericOtp();
       await storeOtp(`resetpin:${phone}`, otp);
-      await bulkSmsSendOtp(phone, otp);
+      let emailUsed = false;
+
+      if (isOutsideBulkSmsHours() && userEmail) {
+        logger.info(`[OTP/forgotPin] Outside BulkSMS hours — sending via email to ${maskEmail(userEmail)}`);
+        await sendOtpEmail(userEmail, otp);
+        emailUsed = true;
+      } else {
+        try {
+          await bulkSmsSendOtp(phone, otp);
+        } catch (smsErr) {
+          if (userEmail) {
+            logger.warn(`[OTP/forgotPin] BulkSMS failed for ${phone}, falling back to email`);
+            await sendOtpEmail(userEmail, otp);
+            emailUsed = true;
+          } else {
+            throw new AppError(503, "Could not send OTP. Please try again later.", "OTP_SEND_FAILED");
+          }
+        }
+      }
+
+      return { emailUsed, maskedEmail: emailUsed && userEmail ? maskEmail(userEmail) : undefined };
     } else {
       await sendChampSendOtp(phone, `resetpin:${phone}`);
+      return { emailUsed: false };
     }
-    return {};
   },
 
   async resetPin(phone: string, otp: string, newPin: string) {

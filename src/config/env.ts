@@ -91,6 +91,12 @@ export const env = {
   BULKSMS_API_TOKEN:  process.env.BULKSMS_API_TOKEN  || "",
   BULKSMS_SENDER_ID:  process.env.BULKSMS_SENDER_ID  || "OwoTrack",
 
+  // ── Brevo transactional email ─────────────────────────────────────────────
+  BREVO_API_KEY: process.env.BREVO_API_KEY || "",
+  BREVO_FROM_EMAIL: process.env.BREVO_FROM_EMAIL || "nwankwolivinus95@gmail.com",
+  BREVO_FROM_NAME: process.env.BREVO_FROM_NAME || "OwoTrack",
+
+  // DEPRECATED: Replaced by Brevo. Keep until Railway vars are cleaned up.
   SENDGRID_API_KEY: process.env.SENDGRID_API_KEY || "",
   SENDGRID_FROM_EMAIL: process.env.SENDGRID_FROM_EMAIL || "noreply@owotrack.com",
   SENDGRID_FROM_NAME: process.env.SENDGRID_FROM_NAME || "OwoTrack",

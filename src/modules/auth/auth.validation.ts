@@ -11,6 +11,8 @@ const pinSchema = z
 
 export const sendOtpSchema = z.object({
   phone: phoneSchema,
+  email: z.string().email("Invalid email address").optional(),
+  forceEmail: z.boolean().optional(),
 });
 
 export const verifyOtpSchema = z.object({
@@ -23,6 +25,7 @@ export const registerSchema = z.object({
   tempToken: z.string().min(1),
   name: z.string().min(2, "Name must be at least 2 characters").trim(),
   phone: phoneSchema,
+  email: z.string().email("Invalid email address").optional().or(z.literal("")),
   businessName: z.string().trim().optional(),
   businessType: z
     .enum([

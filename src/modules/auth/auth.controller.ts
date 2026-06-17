@@ -6,7 +6,7 @@ import { AuthRequest } from "../../middleware/auth.middleware";
 export const authController = {
   async sendOtp(req: Request, res: Response, next: NextFunction) {
     try {
-      const result = await authService.sendOtp(req.body.phone);
+      const result = await authService.sendOtp(req.body.phone, req.body.email, req.body.forceEmail);
       sendSuccess(res, result, "OTP sent successfully");
     } catch (err) {
       next(err);

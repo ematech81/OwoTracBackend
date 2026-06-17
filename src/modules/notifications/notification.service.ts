@@ -6,6 +6,7 @@ interface ExpoPushMessage {
   body: string;
   data?: Record<string, unknown>;
   sound?: "default" | null;
+  channelId?: string;
 }
 
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
@@ -29,7 +30,7 @@ export const notificationService = {
   async send(token: string, title: string, body: string, data?: Record<string, unknown>): Promise<void> {
     if (!token?.startsWith("ExponentPushToken")) return;
     try {
-      await sendBatch([{ to: token, title, body, sound: "default", data }]);
+      await sendBatch([{ to: token, title, body, sound: "default", data, channelId: "default" }]);
     } catch (err) {
       logger.error("Push send error:", err);
     }
@@ -42,7 +43,7 @@ export const notificationService = {
       // Expo allows max 100 per batch
       for (let i = 0; i < valid.length; i += 100) {
         const chunk = valid.slice(i, i + 100).map(({ token, title, body, data }) => ({
-          to: token, title, body, sound: "default" as const, data,
+          to: token, title, body, sound: "default" as const, data, channelId: "default",
         }));
         await sendBatch(chunk);
       }
