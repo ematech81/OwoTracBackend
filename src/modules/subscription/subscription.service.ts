@@ -155,7 +155,7 @@ export async function verifyTransaction(txRef: string): Promise<{ planId: string
   const cardToken = data.card?.authorization?.token;
 
   if (userId && planId) {
-    await activatePlan(userId, planId, cardToken);
+    await activatePlan(userId, planId, cardToken, txRef);
   }
 
   return { planId: planId ?? "", status: data.status };
@@ -246,13 +246,29 @@ export async function handleWebhookEvent(
       return;
     }
     const cardToken = (data.card as any)?.authorization?.token as string | undefined;
-    await activatePlan(userId, planId, cardToken);
+    await activatePlan(userId, planId, cardToken, dedupId);
   }
 }
 
 // ── Internal ───────────────────────────────────────────────────────────────
 
-async function activatePlan(userId: string, planId: string, cardToken?: string): Promise<void> {
+/**
+ * Grants a plan for one successful transaction. Idempotent on txRef — both the
+ * Korapay webhook AND the client's own GET /subscription/verify/:txRef funnel
+ * through here, and a user can call verify() repeatedly (page refresh, retry
+ * button, etc.), so without this guard each call would silently re-extend
+ * expiresAt by another 31 days from a single payment.
+ */
+async function activatePlan(userId: string, planId: string, cardToken: string | undefined, txRef: string): Promise<void> {
+  if (txRef) {
+    const activatedKey = `sub:activated:${txRef}`;
+    const firstTime = await redis.set(activatedKey, "1", "EX", 86400, "NX");
+    if (firstTime === null) {
+      logger.info(`Subscription activation skipped — already applied for ${txRef}`);
+      return;
+    }
+  }
+
   const now = new Date();
   const expiresAt = new Date(now.getTime() + 31 * 24 * 60 * 60 * 1000);
 

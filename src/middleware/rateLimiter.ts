@@ -1,6 +1,7 @@
 import rateLimit from "express-rate-limit";
 import { Request, Response, NextFunction } from "express";
 import { env } from "../config/env";
+import { AuthRequest } from "./auth.middleware";
 
 const noopLimiter = (_req: Request, _res: Response, next: NextFunction) => next();
 
@@ -46,6 +47,40 @@ export const otpVerifyLimiter = env.NODE_ENV === "development" ? noopLimiter : r
     message: "You don try too many times. Abeg wait 30 minutes and try again.",
     data: null,
     error: { code: "OTP_VERIFY_RATE_LIMIT", details: null },
+    meta: null,
+  },
+} as Parameters<typeof rateLimit>[0]);
+
+// Caps direct OpenAI/Whisper cost exposure — these routes have no per-plan quota
+// enforcement yet (aiChatsPerDay/voicePerMonth in plans.ts aren't wired to a usage
+// counter), so without this a single user can call them without limit. Keyed by
+// userId (routes are authenticated) rather than IP, so it holds up behind shared NATs.
+export const advisorLimiter = env.NODE_ENV === "development" ? noopLimiter : rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 30,
+  keyGenerator: (req) => (req as AuthRequest).userId || req.ip || "unknown",
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: "You've reached the AI advisor limit for now. Please try again shortly.",
+    data: null,
+    error: { code: "ADVISOR_RATE_LIMIT", details: null },
+    meta: null,
+  },
+} as Parameters<typeof rateLimit>[0]);
+
+export const voiceLimiter = env.NODE_ENV === "development" ? noopLimiter : rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 20,
+  keyGenerator: (req) => (req as AuthRequest).userId || req.ip || "unknown",
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: "You've reached the voice input limit for now. Please try again shortly, or switch to manual input.",
+    data: null,
+    error: { code: "VOICE_RATE_LIMIT", details: null },
     meta: null,
   },
 } as Parameters<typeof rateLimit>[0]);

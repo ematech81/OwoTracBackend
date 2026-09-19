@@ -1,4 +1,5 @@
 import mongoose, { Document, Schema } from "mongoose";
+import { startOfDay } from "../../utils/dateUtils";
 
 export interface IPayment {
   amount: number;
@@ -64,8 +65,7 @@ creditSchema.index({ userId: 1, isDeleted: 1, status: 1 });
 // "pending" replaces the old "active" label for new records.
 creditSchema.pre("save", function (next) {
   this.balance = this.amount - this.amountPaid;
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
+  const todayStart = startOfDay();
   const threeDaysFromNow = new Date(todayStart.getTime() + 3 * 24 * 60 * 60 * 1000);
 
   if (this.balance <= 0) {

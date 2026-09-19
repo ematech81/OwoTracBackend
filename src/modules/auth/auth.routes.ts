@@ -24,6 +24,6 @@ router.post("/refresh-token", validate(refreshTokenSchema), authController.refre
 router.post("/logout", authController.logout);
 router.post("/change-pin", authenticate, validate(changePinSchema), authController.changePin);
 router.post("/forgot-pin", otpLimiter, validate(forgotPinSchema), authController.forgotPin);
-router.post("/reset-pin", validate(resetPinSchema), authController.resetPin);
+router.post("/reset-pin", otpVerifyLimiter, validate(resetPinSchema), authController.resetPin);
 
 export default router;

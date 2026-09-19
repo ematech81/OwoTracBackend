@@ -1,11 +1,11 @@
 import { Credit, ICredit } from "./credit.model";
 import { AppError } from "../../middleware/errorHandler";
+import { startOfDay, startOfWeek } from "../../utils/dateUtils";
 
 const DUE_SOON_DAYS = 3;
 
 async function refreshStatuses(): Promise<void> {
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
+  const todayStart = startOfDay();
   const threeDaysFromNow = new Date(todayStart.getTime() + DUE_SOON_DAYS * 24 * 60 * 60 * 1000);
 
   // Migrate legacy records that have no dueDate — default to createdAt + 3 days
@@ -103,10 +103,7 @@ export const creditsService = {
 
   async getStats(userId: string) {
     await refreshStatuses();
-    const now = new Date();
-    const weekStart = new Date(now);
-    weekStart.setDate(now.getDate() - now.getDay());
-    weekStart.setHours(0, 0, 0, 0);
+    const weekStart = startOfWeek();
 
     const credits = await Credit.find({ userId, isDeleted: false });
 

@@ -2,19 +2,9 @@ import { Sale } from "../sales/sale.model";
 import { Expense } from "../expenses/expense.model";
 import { Credit } from "../credits/credit.model";
 import { DailySummary } from "./dailySummary.model";
+import { dayBoundsWAT } from "../../utils/dateUtils";
 
-// Nigeria is a fixed UTC+1 offset with no DST, so "00:00 WAT" is always "23:00 UTC
-// the previous day". Computing it this way keeps the boundary correct regardless of
-// what timezone the server process happens to run in — setHours()/setDate() instead
-// would silently depend on that, and be wrong whenever it isn't WAT.
-const WAT_OFFSET_MS = 60 * 60 * 1000;
-
-const dayBounds = (dateStr: string) => {
-  const utcMidnight = new Date(`${dateStr}T00:00:00.000Z`);
-  const start = new Date(utcMidnight.getTime() - WAT_OFFSET_MS);
-  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1);
-  return { start, end };
-};
+const dayBounds = dayBoundsWAT;
 
 const toDateStr = (d: Date) => d.toISOString().split("T")[0];
 
