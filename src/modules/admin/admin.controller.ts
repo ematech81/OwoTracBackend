@@ -297,12 +297,33 @@ export const adminController = {
   // ── Broadcasts ──────────────────────────────────────────────────────────────
   createBroadcast: async (req: Request, res: Response): Promise<void> => {
     try {
-      const { title, content } = req.body;
+      const { title, content, actionButton } = req.body;
       if (!title?.trim() || !content?.trim()) {
         res.status(400).json({ success: false, message: "Title and content are required" });
         return;
       }
-      const broadcast = await Broadcast.create({ title: title.trim(), content: content.trim() });
+
+      // actionButton is entirely optional — omitting it preserves the exact
+      // existing behavior. If provided, both label and url must be present.
+      let actionButtonDoc: { label: string; url: string } | undefined;
+      if (actionButton !== undefined && actionButton !== null) {
+        const label = actionButton.label?.trim();
+        const url = actionButton.url?.trim();
+        if (!label || !url) {
+          res.status(400).json({
+            success: false,
+            message: "actionButton requires both a label and a url",
+          });
+          return;
+        }
+        actionButtonDoc = { label, url };
+      }
+
+      const broadcast = await Broadcast.create({
+        title: title.trim(),
+        content: content.trim(),
+        ...(actionButtonDoc ? { actionButton: actionButtonDoc } : {}),
+      });
       res.status(201).json({ success: true, data: broadcast });
     } catch (err) {
       console.error("[admin] createBroadcast error:", err);
