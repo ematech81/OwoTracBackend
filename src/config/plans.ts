@@ -16,6 +16,7 @@ export interface PlanConfig {
   id: PlanId;
   name: string;
   priceNaira: number;
+  yearlyPriceNaira?: number;
   limits: PlanLimits;
   badge?: string;
 }
@@ -41,6 +42,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     id: "growth",
     name: "Growth",
     priceNaira: 3000,
+    yearlyPriceNaira: 24000,
     badge: "Popular",
     limits: {
       salesPerMonth: 300,
@@ -58,6 +60,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     id: "pro",
     name: "Pro",
     priceNaira: 5000,
+    yearlyPriceNaira: 48000,
     limits: {
       salesPerMonth: -1,
       expensesPerMonth: -1,
@@ -74,6 +77,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     id: "business",
     name: "Business",
     priceNaira: 10000,
+    yearlyPriceNaira: 108000,
     limits: {
       salesPerMonth: -1,
       expensesPerMonth: -1,

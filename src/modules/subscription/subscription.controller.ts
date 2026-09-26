@@ -17,7 +17,8 @@ export const subscriptionController = {
   async initialize(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const planId = req.params.planId as PlanId;
-      const result = await subscriptionService.initializeSubscription(req.userId!, planId);
+      const interval = req.body?.interval === "yearly" ? "yearly" : "monthly";
+      const result = await subscriptionService.initializeSubscription(req.userId!, planId, interval);
       res.json({ success: true, message: "Checkout initialized", data: result, error: null, meta: null });
     } catch (err) {
       next(err);

@@ -33,6 +33,7 @@ export interface IUser extends Document {
     paymentProvider?: "flutterwave" | "korapay";
     autoRenew?: boolean;
     cardToken?: string;
+    billingInterval?: "monthly" | "yearly";
   };
   healthScore: number;
   loanEligible: boolean;
@@ -95,6 +96,7 @@ const userSchema = new Schema<IUser>(
       paymentProvider: { type: String, enum: ["flutterwave", "korapay"] },
       autoRenew: { type: Boolean },
       cardToken: { type: String },
+      billingInterval: { type: String, enum: ["monthly", "yearly"] },
     },
     healthScore: { type: Number, default: 0 },
     loanEligible: { type: Boolean, default: false },

@@ -66,6 +66,9 @@ export const env = {
   KORAPAY_PLAN_GROWTH_MONTHLY:   parseInt(process.env.KORAPAY_PLAN_GROWTH_MONTHLY   || "3000",  10),
   KORAPAY_PLAN_PRO_MONTHLY:      parseInt(process.env.KORAPAY_PLAN_PRO_MONTHLY      || "5000",  10),
   KORAPAY_PLAN_BUSINESS_MONTHLY: parseInt(process.env.KORAPAY_PLAN_BUSINESS_MONTHLY || "10000", 10),
+  KORAPAY_PLAN_GROWTH_YEARLY:    parseInt(process.env.KORAPAY_PLAN_GROWTH_YEARLY    || "24000",  10),
+  KORAPAY_PLAN_PRO_YEARLY:       parseInt(process.env.KORAPAY_PLAN_PRO_YEARLY       || "48000",  10),
+  KORAPAY_PLAN_BUSINESS_YEARLY:  parseInt(process.env.KORAPAY_PLAN_BUSINESS_YEARLY  || "108000", 10),
 
   // ── Twilio (DEPRECATED — replaced by SendChamp 2026-05-16) ─────────────────
   // Keep until 1-week rollback window closes. Do not remove yet.

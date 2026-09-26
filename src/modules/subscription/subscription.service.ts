@@ -20,7 +20,7 @@ interface KorapayInitPayload {
   redirect_url: string;
   customer: { email: string; name: string };
   channels: Array<"card" | "bank_transfer" | "pay_with_bank" | "mobile_money" | "voucher">;
-  metadata: { userId: string; planId: string };
+  metadata: { userId: string; planId: string; interval: BillingInterval };
 }
 
 interface KorapayChargeData {
@@ -66,7 +66,17 @@ function handleKoraError(err: unknown, fallback: string): never {
   throw err;
 }
 
-function getPlanPrice(planId: PlanId): number {
+export type BillingInterval = "monthly" | "yearly";
+
+function getPlanPrice(planId: PlanId, interval: BillingInterval = "monthly"): number {
+  if (interval === "yearly") {
+    switch (planId) {
+      case "growth":   return env.KORAPAY_PLAN_GROWTH_YEARLY;
+      case "pro":      return env.KORAPAY_PLAN_PRO_YEARLY;
+      case "business": return env.KORAPAY_PLAN_BUSINESS_YEARLY;
+      default:         return 0;
+    }
+  }
   switch (planId) {
     case "growth":   return env.KORAPAY_PLAN_GROWTH_MONTHLY;
     case "pro":      return env.KORAPAY_PLAN_PRO_MONTHLY;
@@ -87,7 +97,8 @@ const NOTIFICATION_URL = "https://owotracbackend-production.up.railway.app/api/v
 
 export async function initializeSubscription(
   userId: string,
-  planId: PlanId
+  planId: PlanId,
+  interval: BillingInterval = "monthly"
 ): Promise<{ paymentLink: string; txRef: string }> {
   const user = await User.findById(userId);
   if (!user) throw new AppError(404, "User not found", "USER_NOT_FOUND");
@@ -97,7 +108,7 @@ export async function initializeSubscription(
 
   const email = user.email || `${user.phone.replace(/\D/g, "")}@owotrack.app`;
   const reference = generatePaymentReference();
-  const amount = getPlanPrice(planId);
+  const amount = getPlanPrice(planId, interval);
 
   try {
     const res = await axios.post<KorapayApiResponse<KorapayChargeData>>(
@@ -110,7 +121,7 @@ export async function initializeSubscription(
         redirect_url: REDIRECT_URL,
         customer: { email, name: user.name },
         channels: ["card", "bank_transfer", "pay_with_bank", "mobile_money"],
-        metadata: { userId: user._id.toString(), planId },
+        metadata: { userId: user._id.toString(), planId, interval },
       } satisfies KorapayInitPayload,
       { headers: koraHeaders() }
     );
@@ -146,7 +157,8 @@ export async function verifyTransaction(txRef: string): Promise<{ planId: string
 
   const meta = data.metadata ?? {};
   const { userId, planId } = meta;
-  const expectedAmount = getPlanPrice(planId as PlanId);
+  const interval: BillingInterval = meta.interval === "yearly" ? "yearly" : "monthly";
+  const expectedAmount = getPlanPrice(planId as PlanId, interval);
 
   if (data.amount < expectedAmount) {
     throw new AppError(400, "Partial payment not accepted", "PAYMENT_AMOUNT_MISMATCH");
@@ -155,7 +167,7 @@ export async function verifyTransaction(txRef: string): Promise<{ planId: string
   const cardToken = data.card?.authorization?.token;
 
   if (userId && planId) {
-    await activatePlan(userId, planId, cardToken, txRef);
+    await activatePlan(userId, planId, cardToken, txRef, interval);
   }
 
   return { planId: planId ?? "", status: data.status };
@@ -171,9 +183,11 @@ export async function getStatus(userId: string) {
     status: user.subscription.status,
     startDate: user.subscription.startDate,
     expiresAt: user.subscription.expiresAt,
+    billingInterval: user.subscription.billingInterval ?? "monthly",
     planDetails: {
       name: plan.name,
       priceNaira: plan.priceNaira,
+      yearlyPriceNaira: plan.yearlyPriceNaira,
       badge: plan.badge,
       limits: plan.limits,
     },
@@ -181,6 +195,7 @@ export async function getStatus(userId: string) {
       id: p.id,
       name: p.name,
       priceNaira: p.priceNaira,
+      yearlyPriceNaira: p.yearlyPriceNaira,
       badge: p.badge,
       limits: p.limits,
     })),
@@ -245,8 +260,9 @@ export async function handleWebhookEvent(
       logger.warn("Korapay webhook: missing userId or planId in metadata", { data });
       return;
     }
+    const interval: BillingInterval = meta.interval === "yearly" ? "yearly" : "monthly";
     const cardToken = (data.card as any)?.authorization?.token as string | undefined;
-    await activatePlan(userId, planId, cardToken, dedupId);
+    await activatePlan(userId, planId, cardToken, dedupId, interval);
   }
 }
 
@@ -259,7 +275,7 @@ export async function handleWebhookEvent(
  * button, etc.), so without this guard each call would silently re-extend
  * expiresAt by another 31 days from a single payment.
  */
-async function activatePlan(userId: string, planId: string, cardToken: string | undefined, txRef: string): Promise<void> {
+async function activatePlan(userId: string, planId: string, cardToken: string | undefined, txRef: string, interval: BillingInterval = "monthly"): Promise<void> {
   if (txRef) {
     const activatedKey = `sub:activated:${txRef}`;
     const firstTime = await redis.set(activatedKey, "1", "EX", 86400, "NX");
@@ -270,7 +286,8 @@ async function activatePlan(userId: string, planId: string, cardToken: string | 
   }
 
   const now = new Date();
-  const expiresAt = new Date(now.getTime() + 31 * 24 * 60 * 60 * 1000);
+  const durationDays = interval === "yearly" ? 365 : 31;
+  const expiresAt = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
 
   const updateFields: Record<string, unknown> = {
     "subscription.plan":            planId,
@@ -279,6 +296,7 @@ async function activatePlan(userId: string, planId: string, cardToken: string | 
     "subscription.expiresAt":       expiresAt,
     "subscription.paymentProvider": "korapay",
     "subscription.autoRenew":       false,
+    "subscription.billingInterval": interval,
   };
 
   // Store tokenized card reference if Korapay returned one (for future auto-renewal)
